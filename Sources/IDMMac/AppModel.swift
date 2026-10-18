@@ -189,16 +189,19 @@ final class AppModel: ObservableObject {
     }
 
     /// Queues every video of a playlist into its own folder; they download `maxParallel` at a time.
-    func addPlaylist(_ list: PlaylistInfo, option: VideoOption, track: AudioTrack?,
+    /// `only` limits the download to the checked videos; their numbers keep the playlist order.
+    func addPlaylist(_ list: PlaylistInfo, only: Set<String>? = nil, option: VideoOption, track: AudioTrack?,
                      headers: [String: String], cookies: [BrowserCookie]) {
         let dir = URL(fileURLWithPath: downloadDirectory)
             .appendingPathComponent(FileMeta.sanitize(list.title), isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        for (i, e) in list.entries.enumerated() {
+        var count = 0
+        for (i, e) in list.entries.enumerated() where only?.contains(e.id) ?? true {
+            count += 1
             insertVideo(url: e.url, title: e.title, thumbnail: e.thumbnail ?? "https://i.ytimg.com/vi/\(e.id)/hqdefault.jpg",
                         option: option, track: track, directory: dir.path, index: i + 1, headers: headers, cookies: cookies)
         }
-        notifyUser("Oynatma listesi sıraya alındı", "\(list.title): \(list.entries.count) video")
+        notifyUser("Oynatma listesi sıraya alındı", "\(list.title): \(count) video")
         pump()
     }
 

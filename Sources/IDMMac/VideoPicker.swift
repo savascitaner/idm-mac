@@ -23,7 +23,7 @@ final class VideoWindowController {
         w.styleMask = [.titled, .closable, .utilityWindow]
         w.level = .floating
         w.isReleasedWhenClosed = false
-        w.setContentSize(NSSize(width: 480, height: 480))
+        w.setContentSize(NSSize(width: 520, height: 620))
         w.center()
         windows[req.id] = w
         NSApp.activate(ignoringOtherApps: true)
@@ -48,6 +48,7 @@ struct VideoPickerView: View {
     @State private var playlist: PlaylistInfo?
     @State private var wholeList = false
     @State private var track: AudioTrack?
+    @State private var picked: Set<String> = []
 
     private var query: [URLQueryItem] { URLComponents(string: request.pageURL)?.queryItems ?? [] }
     private var listID: String? { query.first { $0.name == "list" }?.value }
@@ -94,7 +95,7 @@ struct VideoPickerView: View {
                             .font(.callout).lineLimit(1)
                     }
                     if wholeList {
-                        Text("Videolar İndirilenler'de \"\(FileMeta.sanitize(playlist.title))\" klasörüne sırayla iner; seçtiğin kalite ve dil hepsine uygulanır.")
+                        Text("İşaretlediğin videolar İndirilenler'de \"\(FileMeta.sanitize(playlist.title))\" klasörüne sırayla iner; seçtiğin kalite ve dil hepsine uygulanır.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
@@ -103,16 +104,23 @@ struct VideoPickerView: View {
                         ForEach(info.audioTracks) { t in Text(t.label).tag(Optional(t)) }
                     }
                 }
-                Text("Kalite").font(.subheadline.bold())
-                List(info.options, selection: $selection) { opt in
-                    HStack {
-                        Text(opt.label)
-                        Spacer()
-                        Text(opt.detail).foregroundStyle(.secondary)
+                if wholeList, let playlist {
+                    Picker("Kalite", selection: $selection) {
+                        ForEach(info.options) { opt in Text("\(opt.label)  \(opt.detail)").tag(Optional(opt)) }
                     }
-                    .tag(opt)
+                    entryList(playlist)
+                } else {
+                    Text("Kalite").font(.subheadline.bold())
+                    List(info.options, selection: $selection) { opt in
+                        HStack {
+                            Text(opt.label)
+                            Spacer()
+                            Text(opt.detail).foregroundStyle(.secondary)
+                        }
+                        .tag(opt)
+                    }
+                    .frame(minHeight: 150)
                 }
-                .frame(minHeight: 150)
             } else {
                 Label("Bu sayfada indirilebilir video bulunamadı.", systemImage: "exclamationmark.triangle")
                     .font(.headline)
@@ -131,11 +139,11 @@ struct VideoPickerView: View {
                     }
                 }
                 if let info {
-                    Button(wholeList ? "Listeyi indir" : "İndir") {
+                    Button(wholeList ? "Seçilenleri indir (\(picked.count))" : "İndir") {
                         let option = selection ?? info.options[0]
                         let cookies = usedCookies ? request.cookies : []
                         if wholeList, let playlist {
-                            AppModel.shared.addPlaylist(playlist, option: option, track: track,
+                            AppModel.shared.addPlaylist(playlist, only: picked, option: option, track: track,
                                                         headers: request.headers, cookies: cookies)
                         } else {
                             AppModel.shared.addVideo(info: info, option: option, track: track,
@@ -144,11 +152,12 @@ struct VideoPickerView: View {
                         dismiss()
                     }
                     .keyboardShortcut(.defaultAction)
+                    .disabled(wholeList && picked.isEmpty)
                 }
             }
         }
         .padding(16)
-        .frame(width: 480, height: 480)
+        .frame(width: 520, height: 620)
         .onAppear(perform: load)
     }
 
@@ -161,6 +170,7 @@ struct VideoPickerView: View {
         YtDlp.probePlaylist(url: request.pageURL, cookieFile: nil, headers: request.headers) { r in
             if case .success(let list) = r {
                 playlist = list
+                picked = Set(list.entries.map(\.id))
                 if !hasVideo { wholeList = true }
             }
             guard !hasVideo else { return }
@@ -207,6 +217,41 @@ struct VideoPickerView: View {
             case .success(let i): done(.success((i, a.cookies != nil)))
             case .failure(let e): run(Array(attempts.dropFirst()), firstError: firstError ?? e, done: done)
             }
+        }
+    }
+
+    /// The playlist's videos with a checkbox each, so only the wanted ones are queued.
+    private func entryList(_ playlist: PlaylistInfo) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Videolar").font(.subheadline.bold())
+                Text("\(picked.count) / \(playlist.entries.count) seçili").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button("Tümünü seç") { picked = Set(playlist.entries.map(\.id)) }
+                Button("Hiçbirini") { picked = [] }
+            }
+            .controlSize(.small)
+            List(Array(playlist.entries.enumerated()), id: \.element.id) { i, e in
+                Toggle(isOn: Binding(
+                    get: { picked.contains(e.id) },
+                    set: { on in if on { picked.insert(e.id) } else { picked.remove(e.id) } }
+                )) {
+                    HStack(spacing: 8) {
+                        Text(String(format: "%02d", i + 1)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                        AsyncImage(url: URL(string: e.thumbnail ?? "https://i.ytimg.com/vi/\(e.id)/default.jpg")) { img in
+                            img.resizable().aspectRatio(contentMode: .fill)
+                        } placeholder: { Color.secondary.opacity(0.15) }
+                        .frame(width: 48, height: 27).clipShape(RoundedRectangle(cornerRadius: 3))
+                        Text(e.title).lineLimit(1)
+                        Spacer()
+                        if let d = e.duration, d > 0 {
+                            Text(String(format: "%d:%02d", Int(d) / 60, Int(d) % 60)).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .toggleStyle(.checkbox)
+            }
+            .frame(minHeight: 200)
         }
     }
 

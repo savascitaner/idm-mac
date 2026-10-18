@@ -42,6 +42,7 @@ struct PlaylistEntry: Identifiable {
     var url: String
     var title: String
     var thumbnail: String?
+    var duration: Double?
 }
 
 struct PlaylistInfo {
@@ -140,7 +141,7 @@ enum YtDlp {
             if !url.hasPrefix("http") { url = "https://www.youtube.com/watch?v=\(id)" }
             let thumbs = e["thumbnails"] as? [[String: Any]] ?? []
             return PlaylistEntry(id: id, url: url, title: e["title"] as? String ?? id,
-                                 thumbnail: thumbs.last?["url"] as? String)
+                                 thumbnail: thumbs.last?["url"] as? String, duration: e["duration"] as? Double)
         }
         guard !list.isEmpty else { return nil }
         return PlaylistInfo(title: json["title"] as? String ?? "Oynatma listesi", entries: list)
