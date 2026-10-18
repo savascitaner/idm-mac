@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Builds "IDM Mac.app" (arm64) with yt-dlp and ffmpeg inside, ad-hoc signs it and makes dist/IDM-Mac.dmg.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+VERSION="${VERSION:-0.1.0}"
+BUILD="${BUILD:-1}"
+APP="dist/IDM Mac.app"
+TMP="$(mktemp -d)"
+
+echo "==> Swift build"
+swift build -c release --arch arm64
+BIN="$(swift build -c release --arch arm64 --show-bin-path)"
+
+echo "==> App bundle"
+rm -rf dist
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/bin"
+cp "$BIN/IDMMac" "$BIN/IDMMacHost" "$APP/Contents/MacOS/"
+sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" Packaging/Info.plist > "$APP/Contents/Info.plist"
+cp -R Extension "$APP/Contents/Resources/ChromeExtension"
+
+echo "==> yt-dlp"
+curl -fsSL --retry 3 -o "$APP/Contents/Resources/bin/yt-dlp" \
+  https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos
+chmod +x "$APP/Contents/Resources/bin/yt-dlp"
+
+echo "==> ffmpeg / ffprobe (arm64)"
+for tool in ffmpeg ffprobe; do
+  if curl -fsSL --retry 3 -o "$TMP/$tool.zip" \
+      "https://ffmpeg.martin-riedl.de/redirect/latest/macos/arm64/release/$tool.zip"; then
+    unzip -oq "$TMP/$tool.zip" -d "$TMP/$tool"
+    cp "$(find "$TMP/$tool" -type f -name "$tool" | head -1)" "$APP/Contents/Resources/bin/$tool"
+    chmod +x "$APP/Contents/Resources/bin/$tool"
+  else
+    echo "warning: $tool could not be downloaded; the app will fall back to Homebrew's copy" >&2
+  fi
+done
+
+for f in "$APP"/Contents/Resources/bin/*; do
+  echo "    $(basename "$f"): $(lipo -archs "$f" 2>/dev/null || echo '?')"
+done
+
+echo "==> Ad-hoc signing"
+for f in "$APP"/Contents/Resources/bin/*; do
+  codesign --verify "$f" 2>/dev/null || codesign --force --sign - "$f"
+done
+codesign --force --sign - "$APP/Contents/MacOS/IDMMacHost"
+codesign --force --sign - "$APP"
+codesign --verify --verbose "$APP"
+
+echo "==> DMG"
+STAGE="$TMP/dmg"
+mkdir -p "$STAGE"
+cp -R "$APP" "$STAGE/"
+ln -s /Applications "$STAGE/Applications"
+cp Packaging/BENIOKU.txt "$STAGE/BENİ OKU.txt"
+hdiutil create -volname "IDM Mac" -srcfolder "$STAGE" -ov -format UDZO "dist/IDM-Mac.dmg"
+echo "==> dist/IDM-Mac.dmg"

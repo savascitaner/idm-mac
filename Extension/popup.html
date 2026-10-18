@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<style>
+  :root { color-scheme: light dark; --accent: #2563eb; --muted: #6b7280; --line: rgba(127,127,127,.25); }
+  body { font: 13px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; margin: 0; width: 340px; }
+  header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  header b { flex: 1; font-size: 14px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.ok { background: #16a34a; } .dot.warn { background: #f59e0b; } .dot.bad { background: #dc2626; }
+  section { padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  label.row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
+  h4 { margin: 0 0 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
+  ul { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow: auto; }
+  li { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
+  li span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  li small { color: var(--muted); }
+  button { font: inherit; border: 0; border-radius: 6px; padding: 5px 10px; background: var(--accent); color: #fff; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--accent); padding: 5px 0; }
+  .empty, #statusText { color: var(--muted); }
+  form { display: flex; gap: 6px; }
+  input[type=url] { flex: 1; font: inherit; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: inherit; }
+</style>
+</head>
+<body>
+  <header><span class="dot" id="dot"></span><b>IDM Mac</b><span id="statusText">Kontrol ediliyor…</span></header>
+  <section>
+    <button id="pageVideo">Bu sayfadaki videoyu indir</button>
+  </section>
+  <section>
+    <h4>Bu sekmede bulunan medya</h4>
+    <ul id="media"><li class="empty">Henüz bir şey yakalanmadı.</li></ul>
+  </section>
+  <section>
+    <form id="add"><input type="url" id="url" placeholder="Adres yapıştır" required><button>İndir</button></form>
+  </section>
+  <section>
+    <label class="row">İndirmeleri otomatik yakala <input type="checkbox" id="capture"></label>
+    <label class="row">Videoların üstünde buton göster <input type="checkbox" id="videoButton"></label>
+  </section>
+  <script src="popup.js"></script>
+</body>
+</html>

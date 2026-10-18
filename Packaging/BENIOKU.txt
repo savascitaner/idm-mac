@@ -1,0 +1,19 @@
+IDM Mac kurulumu
+
+1) "IDM Mac" simgesini Applications klasörüne sürükle.
+
+2) Uygulama Apple tarafından imzalanmadığı için ilk açılışta macOS uyarı verir.
+   Terminal'de şu komutu bir kez çalıştır:
+
+     xattr -dr com.apple.quarantine "/Applications/IDM Mac.app"
+
+   (Ya da: uygulamayı bir kez açmayı dene, sonra Sistem Ayarları > Gizlilik ve Güvenlik >
+   "Yine de Aç" düğmesine bas.)
+
+3) IDM Mac'i aç. Araç çubuğundaki yapboz simgesine ("Chrome eklentisi") bas ve
+   oradaki 4 adımı izle: chrome://extensions > Geliştirici modu > Paketlenmemiş öğe yükle >
+   gösterilen klasörü seç.
+
+4) Chrome'u kapatıp yeniden aç. Artık:
+   - İndirme linklerine tıklayınca indirme otomatik olarak IDM Mac'e geçer.
+   - YouTube, Vimeo, X vb. sitelerde videonun üstüne gelince "Bu videoyu indir" butonu çıkar.

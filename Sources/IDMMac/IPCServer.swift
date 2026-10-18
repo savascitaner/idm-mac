@@ -1,0 +1,142 @@
+import Darwin
+import Foundation
+
+/// Unix-domain socket the native messaging host connects to. Messages are JSON, one per line.
+/// Only the current user can connect (the socket file is 0600 inside ~/Library/Application Support).
+final class IPCServer {
+    typealias Reply = ([String: Any]) -> Void
+    private let path: String
+    private let onMessage: ([String: Any], @escaping Reply) -> Void
+    private var listenFD: Int32 = -1
+
+    init(path: String, onMessage: @escaping ([String: Any], @escaping Reply) -> Void) {
+        self.path = path
+        self.onMessage = onMessage
+    }
+
+    func start() {
+        unlink(path)
+        listenFD = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard listenFD >= 0 else { return }
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        let bytes = Array(path.utf8)
+        let fits = withUnsafeMutableBytes(of: &addr.sun_path) { buf -> Bool in
+            guard bytes.count < buf.count else { return false }
+            buf.copyBytes(from: bytes)
+            buf[bytes.count] = 0
+            return true
+        }
+        guard fits else { NSLog("IDMMac: socket path too long"); return }
+        let len = socklen_t(MemoryLayout<sockaddr_un>.size)
+        let r = withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(listenFD, $0, len) }
+        }
+        guard r == 0 else { NSLog("IDMMac: bind failed \(errno)"); return }
+        chmod(path, 0o600)
+        listen(listenFD, 8)
+
+        let fd = listenFD
+        Thread { [weak self] in
+            while true {
+                let client = accept(fd, nil, nil)
+                if client < 0 {
+                    if errno == EINTR { continue }
+                    break
+                }
+                self?.serve(client)
+            }
+        }.start()
+    }
+
+    private func serve(_ fd: Int32) {
+        let lock = NSLock()
+        let reply: Reply = { obj in
+            guard var data = try? JSONSerialization.data(withJSONObject: obj) else { return }
+            data.append(0x0A)
+            lock.lock()
+            defer { lock.unlock() }
+            data.withUnsafeBytes { raw in
+                var p = raw.baseAddress!
+                var left = raw.count
+                while left > 0 {
+                    let n = write(fd, p, left)
+                    if n <= 0 { if errno == EINTR { continue }; return }
+                    left -= n
+                    p += n
+                }
+            }
+        }
+        Thread { [weak self] in
+            var buffer = Data()
+            var chunk = [UInt8](repeating: 0, count: 65536)
+            while true {
+                let n = chunk.withUnsafeMutableBytes { read(fd, $0.baseAddress!, $0.count) }
+                if n < 0 && errno == EINTR { continue }
+                if n <= 0 { break }
+                buffer.append(contentsOf: chunk[0..<n])
+                while let nl = buffer.firstIndex(of: 0x0A) {
+                    let line = buffer[buffer.startIndex..<nl]
+                    buffer.removeSubrange(buffer.startIndex...nl)
+                    if let obj = (try? JSONSerialization.jsonObject(with: Data(line))) as? [String: Any] {
+                        self?.onMessage(obj, reply)
+                    }
+                }
+            }
+            close(fd)
+        }.start()
+    }
+}
+
+/// Registers the native messaging host with every Chromium-based browser that is installed.
+enum HostInstaller {
+    static let hostName = "com.savascitaner.idmmac"
+    static let extensionID = "mnanilgkappdlfepnjifibfalbblnbcc"
+
+    static let browserDirs = [
+        "Google/Chrome", "Google/Chrome Beta", "Google/Chrome Dev", "Google/Chrome Canary",
+        "Chromium", "BraveSoftware/Brave-Browser", "Microsoft Edge", "Vivaldi", "Arc/User Data",
+    ]
+
+    @discardableResult
+    static func install() -> [String] {
+        let fm = FileManager.default
+        guard let hostExe = Bundle.main.executableURL?.deletingLastPathComponent().appendingPathComponent("IDMMacHost"),
+              fm.isExecutableFile(atPath: hostExe.path) else { return [] }
+        let manifest: [String: Any] = [
+            "name": hostName,
+            "description": "IDM Mac native messaging host",
+            "path": hostExe.path,
+            "type": "stdio",
+            "allowed_origins": ["chrome-extension://\(extensionID)/"],
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .withoutEscapingSlashes]) else { return [] }
+        let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        var installed: [String] = []
+        for dir in browserDirs {
+            let browser = base.appendingPathComponent(dir, isDirectory: true)
+            guard fm.fileExists(atPath: browser.path) else { continue }
+            let hosts = browser.appendingPathComponent("NativeMessagingHosts", isDirectory: true)
+            try? fm.createDirectory(at: hosts, withIntermediateDirectories: true)
+            if (try? data.write(to: hosts.appendingPathComponent("\(hostName).json"))) != nil {
+                installed.append(dir)
+            }
+        }
+        return installed
+    }
+
+    /// Copies the bundled extension to a stable folder that Chrome can load ("Load unpacked").
+    static func exportExtension() -> URL? {
+        let fm = FileManager.default
+        guard let src = Bundle.main.resourceURL?.appendingPathComponent("ChromeExtension", isDirectory: true),
+              fm.fileExists(atPath: src.path) else { return nil }
+        let dst = Paths.extensionDir
+        try? fm.removeItem(at: dst)
+        do {
+            try fm.copyItem(at: src, to: dst)
+            return dst
+        } catch {
+            return nil
+        }
+    }
+}

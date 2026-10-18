@@ -1,0 +1,257 @@
+import Foundation
+
+/// One quality choice offered in the video dialog.
+struct VideoOption: Identifiable, Hashable {
+    var id: String { label }
+    var label: String
+    var detail: String
+    var sort: String?      // yt-dlp -S
+    var format: String     // yt-dlp -f
+    var audioOnly: Bool
+}
+
+struct VideoInfo {
+    var title: String
+    var webpageURL: String
+    var thumbnail: String?
+    var duration: Double?
+    var options: [VideoOption]
+}
+
+enum YtDlp {
+    /// Writes the browser cookies to a Netscape cookies.txt that yt-dlp can read.
+    static func cookieFile(for id: UUID, cookies: [BrowserCookie]) -> URL? {
+        guard !cookies.isEmpty else { return nil }
+        try? FileManager.default.createDirectory(at: Paths.cookies, withIntermediateDirectories: true)
+        let url = Paths.cookies.appendingPathComponent("\(id.uuidString).txt")
+        let body = "# Netscape HTTP Cookie File\n" + cookies.map(\.netscapeLine).joined(separator: "\n") + "\n"
+        do {
+            try body.write(to: url, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+            return url
+        } catch {
+            return nil
+        }
+    }
+
+    static func commonArgs(cookieFile: URL?, headers: [String: String]) -> [String] {
+        var a = ["--no-playlist", "--no-warnings", "--no-mtime"]
+        if let c = cookieFile { a += ["--cookies", c.path] }
+        if let ua = headers["User-Agent"], !ua.isEmpty { a += ["--user-agent", ua] }
+        if let r = headers["Referer"], !r.isEmpty { a += ["--referer", r] }
+        if let ff = Tools.ffmpeg { a += ["--ffmpeg-location", ff.path] }
+        return a
+    }
+
+    /// Runs `yt-dlp -J` and turns the format list into a few simple choices.
+    static func probe(url: String, cookieFile: URL?, headers: [String: String],
+                      completion: @escaping (Result<VideoInfo, Error>) -> Void) {
+        guard let exe = Tools.ytdlp else {
+            completion(.failure(Failure("yt-dlp bulunamadı")))
+            return
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let p = Process()
+            p.executableURL = exe
+            p.arguments = commonArgs(cookieFile: cookieFile, headers: headers) + ["-J", url]
+            let out = Pipe(), err = Pipe()
+            p.standardOutput = out
+            p.standardError = err
+            do { try p.run() } catch {
+                DispatchQueue.main.async { completion(.failure(error)) }
+                return
+            }
+            let data = out.fileHandleForReading.readDataToEndOfFile()
+            let errData = err.fileHandleForReading.readDataToEndOfFile()
+            p.waitUntilExit()
+            let result: Result<VideoInfo, Error>
+            if p.terminationStatus == 0, let info = parse(data, fallbackURL: url) {
+                result = .success(info)
+            } else {
+                result = .failure(Failure(lastLines(errData) ?? "Video bilgisi alınamadı"))
+            }
+            DispatchQueue.main.async { completion(result) }
+        }
+    }
+
+    static func parse(_ data: Data, fallbackURL: String) -> VideoInfo? {
+        guard var json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
+        if json["_type"] as? String == "playlist", let entries = json["entries"] as? [[String: Any]],
+           let first = entries.first(where: { $0["formats"] != nil }) ?? entries.first {
+            json = first
+        }
+        let title = json["title"] as? String ?? "video"
+        let formats = json["formats"] as? [[String: Any]] ?? []
+
+        func size(_ f: [String: Any]) -> Int64 {
+            (f["filesize"] as? NSNumber)?.int64Value ?? (f["filesize_approx"] as? NSNumber)?.int64Value ?? 0
+        }
+        let videos = formats.filter { ($0["vcodec"] as? String ?? "none") != "none" }
+        let audios = formats.filter { ($0["vcodec"] as? String ?? "") == "none" && ($0["acodec"] as? String ?? "none") != "none" }
+        let bestAudio = audios.map(size).max() ?? 0
+
+        var heights = Set<Int>()
+        for f in videos { if let h = (f["height"] as? NSNumber)?.intValue, h > 0 { heights.insert(h) } }
+        let sorted = heights.sorted(by: >)
+
+        var options: [VideoOption] = []
+        options.append(VideoOption(label: "En iyi kalite", detail: sorted.first.map { "\($0)p" } ?? "",
+                                   sort: "res,ext:mp4:m4a", format: "bv*+ba/b", audioOnly: false))
+        for h in sorted.prefix(6) {
+            let best = videos.filter { ($0["height"] as? NSNumber)?.intValue == h }.map(size).max() ?? 0
+            let total = best > 0 ? best + bestAudio : 0
+            options.append(VideoOption(label: "\(h)p", detail: total > 0 ? "~" + Format.bytes(total) : "",
+                                       sort: "res:\(h),ext:mp4:m4a", format: "bv*+ba/b", audioOnly: false))
+        }
+        if !audios.isEmpty || videos.isEmpty == false {
+            options.append(VideoOption(label: "Sadece ses (m4a)", detail: bestAudio > 0 ? "~" + Format.bytes(bestAudio) : "",
+                                       sort: "ext:m4a", format: "ba/b", audioOnly: true))
+        }
+        return VideoInfo(title: title,
+                         webpageURL: json["webpage_url"] as? String ?? fallbackURL,
+                         thumbnail: json["thumbnail"] as? String,
+                         duration: (json["duration"] as? NSNumber)?.doubleValue,
+                         options: options)
+    }
+
+    static func lastLines(_ data: Data) -> String? {
+        let s = String(data: data, encoding: .utf8) ?? ""
+        let lines = s.split(separator: "\n").map(String.init).filter { !$0.isEmpty }
+        guard !lines.isEmpty else { return nil }
+        return lines.suffix(3).joined(separator: "\n")
+    }
+
+    struct Failure: LocalizedError {
+        var message: String
+        init(_ m: String) { message = m }
+        var errorDescription: String? { message }
+    }
+}
+
+/// Downloads one video with yt-dlp and reports progress parsed from its output.
+final class VideoDownloader {
+    private var process: Process?
+    private let record: DownloadRecord
+    private let onEvent: (SegmentedDownloader.Event) -> Void
+    private var stopped = false
+
+    init(record: DownloadRecord, onEvent: @escaping (SegmentedDownloader.Event) -> Void) {
+        self.record = record
+        self.onEvent = onEvent
+    }
+
+    func start() {
+        guard let exe = Tools.ytdlp else {
+            onEvent(.failed("yt-dlp bulunamadı", snapshot(0, -1)))
+            return
+        }
+        stopped = false
+        let cookieFile = YtDlp.cookieFile(for: record.id, cookies: record.cookies)
+        var args = YtDlp.commonArgs(cookieFile: cookieFile, headers: record.headers)
+        args += ["--newline", "--progress", "-N", "8",
+                 "-f", record.videoFormat ?? "bv*+ba/b",
+                 "-o", "\(record.directory)/%(title).180B [%(id)s].%(ext)s",
+                 "--progress-template", "download:IDMPROG %(progress.downloaded_bytes)s|%(progress.total_bytes)s|%(progress.total_bytes_estimate)s|%(progress.speed)s",
+                 "--print", "after_move:IDMFILE %(filepath)s"]
+        if let s = record.videoSort { args += ["-S", s] }
+        if !record.audioOnly { args += ["--merge-output-format", "mp4"] }
+        args.append(record.url)
+
+        let p = Process()
+        p.executableURL = exe
+        p.arguments = args
+        p.currentDirectoryURL = URL(fileURLWithPath: record.directory)
+        let out = Pipe(), err = Pipe()
+        p.standardOutput = out
+        p.standardError = err
+        process = p
+
+        var finalPath: String?
+        var lastProgress = snapshot(0, -1)
+        var errTail: [String] = []
+        let lineQueue = DispatchQueue(label: "idmmac.ytdlp")
+        var outBuffer = Data()
+        out.fileHandleForReading.readabilityHandler = { [weak self] h in
+            let d = h.availableData
+            guard !d.isEmpty else { return }
+            lineQueue.sync {
+                outBuffer.append(d)
+                while let nl = outBuffer.firstIndex(of: 0x0A) {
+                    let line = String(data: outBuffer[outBuffer.startIndex..<nl], encoding: .utf8) ?? ""
+                    outBuffer.removeSubrange(outBuffer.startIndex...nl)
+                    if line.hasPrefix("IDMFILE ") {
+                        finalPath = String(line.dropFirst(8))
+                    } else if line.hasPrefix("IDMPROG "), let s = self?.parseProgress(String(line.dropFirst(8))) {
+                        lastProgress = s
+                        DispatchQueue.main.async { self?.onEvent(.progress(s)) }
+                    }
+                }
+            }
+        }
+        err.fileHandleForReading.readabilityHandler = { h in
+            let d = h.availableData
+            guard !d.isEmpty, let s = String(data: d, encoding: .utf8) else { return }
+            lineQueue.sync {
+                errTail += s.split(separator: "\n").map(String.init)
+                if errTail.count > 20 { errTail.removeFirst(errTail.count - 20) }
+            }
+        }
+        p.terminationHandler = { [weak self] proc in
+            out.fileHandleForReading.readabilityHandler = nil
+            err.fileHandleForReading.readabilityHandler = nil
+            // Drain whatever is left in the pipe (the IDMFILE line is printed last).
+            let rest = out.fileHandleForReading.readDataToEndOfFile()
+            lineQueue.sync {
+                outBuffer.append(rest)
+                for line in String(data: outBuffer, encoding: .utf8)?.split(separator: "\n") ?? [] where line.hasPrefix("IDMFILE ") {
+                    finalPath = String(line.dropFirst(8))
+                }
+            }
+            if let c = cookieFile { try? FileManager.default.removeItem(at: c) }
+            guard let self, !self.stopped else { return }
+            var snap = lastProgress
+            if proc.terminationStatus == 0 {
+                snap.finalPath = finalPath
+                if let fp = finalPath {
+                    snap.fileName = URL(fileURLWithPath: fp).lastPathComponent
+                    let size = (try? FileManager.default.attributesOfItem(atPath: fp)[.size] as? NSNumber)?.int64Value ?? snap.totalBytes
+                    snap.totalBytes = size
+                    snap.receivedBytes = size
+                    FileMeta.markDownloaded(URL(fileURLWithPath: fp), from: self.record.url, referrer: self.record.pageURL)
+                }
+                DispatchQueue.main.async { self.onEvent(.completed(snap)) }
+            } else {
+                let msg = lineQueue.sync { errTail.filter { $0.contains("ERROR") }.last ?? errTail.last } ?? "yt-dlp hata verdi"
+                DispatchQueue.main.async { self.onEvent(.failed(msg, snap)) }
+            }
+        }
+        do {
+            try p.run()
+            onEvent(.progress(snapshot(0, -1)))
+        } catch {
+            onEvent(.failed("yt-dlp çalıştırılamadı: \(error.localizedDescription)", snapshot(0, -1)))
+        }
+    }
+
+    /// yt-dlp resumes its .part files, so pausing is simply stopping the process.
+    func pause() {
+        stopped = true
+        process?.terminate()
+        process = nil
+    }
+
+    private func snapshot(_ got: Int64, _ total: Int64) -> SegmentedDownloader.Snapshot {
+        SegmentedDownloader.Snapshot(totalBytes: total, receivedBytes: got, segments: [], tempPath: nil,
+                                     finalPath: nil, fileName: record.fileName, connections: 0)
+    }
+
+    private func parseProgress(_ s: String) -> SegmentedDownloader.Snapshot? {
+        let parts = s.split(separator: "|", omittingEmptySubsequences: false).map { Double($0) }
+        guard parts.count >= 4 else { return nil }
+        let got = Int64(parts[0] ?? 0)
+        let total = Int64(parts[1] ?? parts[2] ?? -1)
+        var snap = snapshot(got, total)
+        snap.connections = 8
+        return snap
+    }
+}
