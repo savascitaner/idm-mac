@@ -194,7 +194,9 @@ struct ExtensionHelpSheet: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("1. Chrome'da adres çubuğuna **chrome://extensions** yaz ve aç.")
                 Text("2. Sağ üstteki **Geliştirici modu** anahtarını aç.")
-                Text("3. **Paketlenmemiş öğe yükle** düğmesine bas ve aşağıdaki klasörü seç.")
+                Text("3. **Paketlenmemiş öğe yükle** düğmesine bas. Açılan pencerede **Cmd + Shift + G** tuşlarına bas, aşağıdaki yolu yapıştır (\"Yolu kopyala\") ve **Seç**'e bas.")
+                Text("Not: Yolu Chrome'un adres çubuğuna yapıştırmak eklentiyi yüklemez, sadece klasörü listeler.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Text("4. Eklentinin simgesini araç çubuğuna sabitle. Hepsi bu.")
             }
             HStack {
