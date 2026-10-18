@@ -41,6 +41,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
     private var fileName: String
 
     private static let minSplit: Int64 = 512 * 1024
+    static let htmlInsteadOfFile = "Sunucu dosya yerine bir web sayfası gönderdi"
 
     init(record: DownloadRecord, maxConnections: Int, onEvent: @escaping (Event) -> Void) {
         self.record = record
@@ -119,6 +120,13 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         let status = http?.statusCode ?? 200
         if status >= 400 {
             fail("Sunucu hatası: HTTP \(status)")
+            return
+        }
+        let type = (http?.value(forHTTPHeaderField: "Content-Type") ?? "").lowercased()
+        let expected = (record.browserMime ?? "").lowercased()
+        if type.contains("text/html"), !expected.isEmpty, !expected.contains("html") {
+            // The server sent a web page (error, login or "please wait") instead of the file Chrome got.
+            fail(Self.htmlInsteadOfFile)
             return
         }
         if status == 206, let cr = http?.value(forHTTPHeaderField: "Content-Range"),

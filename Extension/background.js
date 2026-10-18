@@ -30,6 +30,12 @@ function getPort() {
     return null;
   }
   port.onMessage.addListener((m) => {
+    if (m && m.type === "fallback" && m.url) {
+      // The app couldn't fetch it (e.g. the server sent a web page); let Chrome download it itself.
+      skipOnce.add(m.url);
+      chrome.downloads.download({ url: m.url });
+      return;
+    }
     if (m && m.id && pending.has(m.id)) {
       const p = pending.get(m.id);
       clearTimeout(p.timer);
@@ -153,6 +159,7 @@ async function handOff(item) {
   const res = await send({
     type: "download",
     url,
+    originalUrl: item.url,
     filename: (item.filename || "").split("/").pop(),
     referrer: item.referrer || "",
     mime: item.mime || "",

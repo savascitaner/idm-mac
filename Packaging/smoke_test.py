@@ -113,6 +113,26 @@ def main():
     if list(path.parent.glob("*.idmpart")):
         fail("leftover .idmpart file")
 
+    # A server that answers with a web page instead of the file must be handed back to Chrome.
+    p = subprocess.Popen([str(HOST)], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    p.stdin.write(frame({"type": "download", "id": "h1", "url": "https://example.com/", "originalUrl": "https://example.com/",
+                         "filename": "file.zip", "mime": "application/zip", "userAgent": "Mozilla/5.0", "cookies": []}))
+    p.stdin.flush()
+    got = []
+    t0 = time.time()
+    while time.time() - t0 < 60:
+        m = read_frame(p.stdout)
+        if m is None:
+            break
+        got.append(m)
+        if m.get("type") == "fallback":
+            break
+    p.stdin.close()
+    p.kill()
+    print("html fallback:", got)
+    if not any(m.get("type") == "fallback" for m in got):
+        fail("HTML response was not handed back to the browser")
+
     ytdlp = SUPPORT / "bin/yt-dlp"
     if not ytdlp.exists():
         fail("yt-dlp was not installed into Application Support")

@@ -64,7 +64,8 @@ final class AppModel: ObservableObject {
         switch type {
         case "download":
             guard let url = msg["url"] as? String else { return }
-            addFile(url: url, fileName: msg["filename"] as? String ?? "", headers: headers, cookies: cookies)
+            addFile(url: url, fileName: msg["filename"] as? String ?? "", headers: headers, cookies: cookies,
+                    browserMime: msg["mime"] as? String, originalURL: msg["originalUrl"] as? String)
         case "video":
             let page = msg["pageUrl"] as? String ?? ""
             let media = msg["mediaUrl"] as? String
@@ -101,13 +102,16 @@ final class AppModel: ObservableObject {
 
     // MARK: Adding
 
-    func addFile(url: String, fileName: String = "", headers: [String: String] = [:], cookies: [BrowserCookie] = []) {
+    func addFile(url: String, fileName: String = "", headers: [String: String] = [:], cookies: [BrowserCookie] = [],
+                 browserMime: String? = nil, originalURL: String? = nil) {
         var h = headers
         if !cookies.isEmpty { h["Cookie"] = Self.cookieHeader(cookies) }
         var name = FileMeta.sanitize(URL(fileURLWithPath: fileName).lastPathComponent)
         if fileName.isEmpty { name = "" }
-        let rec = DownloadRecord(kind: .file, url: url, pageURL: headers["Referer"], fileName: name,
+        var rec = DownloadRecord(kind: .file, url: url, pageURL: headers["Referer"], fileName: name,
                                  directory: downloadDirectory, headers: h)
+        rec.browserMime = browserMime
+        rec.originalURL = originalURL
         downloads.insert(rec, at: 0)
         notifyUser("İndirme başladı", name.isEmpty ? url : name)
         pump()
@@ -214,8 +218,16 @@ final class AppModel: ObservableObject {
             downloads[i].headers["Cookie"] = nil
             finished(id)
             notifyUser("İndirme tamamlandı", downloads[i].fileName)
-        case .failed(let msg, let s):
+        case .failed(var msg, let s):
             merge(s)
+            if msg == SegmentedDownloader.htmlInsteadOfFile, downloads[i].browserMime != nil {
+                // Like IDM: if we can't fetch it, let the browser download it after all.
+                let url = downloads[i].originalURL ?? downloads[i].url
+                if server?.broadcast(["type": "fallback", "url": url]) == true {
+                    msg += "; indirme Chrome'a geri verildi"
+                }
+                if let t = downloads[i].tempPath { try? FileManager.default.removeItem(atPath: t) }
+            }
             downloads[i].state = .failed
             downloads[i].error = msg
             downloads[i].speed = 0

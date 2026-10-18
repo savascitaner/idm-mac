@@ -8,6 +8,18 @@ final class IPCServer {
     private let path: String
     private let onMessage: ([String: Any], @escaping Reply) -> Void
     private var listenFD: Int32 = -1
+    private let clientsLock = NSLock()
+    private var clients: [Int32: Reply] = [:]
+
+    /// Sends a message to every connected browser host. Returns false if none is connected.
+    @discardableResult
+    func broadcast(_ obj: [String: Any]) -> Bool {
+        clientsLock.lock()
+        let all = Array(clients.values)
+        clientsLock.unlock()
+        all.forEach { $0(obj) }
+        return !all.isEmpty
+    }
 
     init(path: String, onMessage: @escaping ([String: Any], @escaping Reply) -> Void) {
         self.path = path
@@ -67,6 +79,9 @@ final class IPCServer {
                 }
             }
         }
+        clientsLock.lock()
+        clients[fd] = reply
+        clientsLock.unlock()
         Thread { [weak self] in
             var buffer = Data()
             var chunk = [UInt8](repeating: 0, count: 65536)
@@ -82,6 +97,11 @@ final class IPCServer {
                         self?.onMessage(obj, reply)
                     }
                 }
+            }
+            if let self {
+                self.clientsLock.lock()
+                self.clients[fd] = nil
+                self.clientsLock.unlock()
             }
             close(fd)
         }.start()

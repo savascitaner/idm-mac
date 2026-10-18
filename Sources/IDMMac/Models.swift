@@ -53,6 +53,8 @@ struct DownloadRecord: Codable, Identifiable {
     var segments: [Segment] = []
     var tempPath: String?
     var finalPath: String?
+    var browserMime: String?
+    var originalURL: String?
     var videoFormat: String?
     var videoSort: String?
     var audioOnly: Bool = false
