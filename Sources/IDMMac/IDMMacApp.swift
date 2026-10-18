@@ -25,8 +25,9 @@ struct IDMMacApp: App {
         Window("IDM Mac", id: "main") {
             ContentView()
                 .environmentObject(model)
-                .frame(minWidth: 720, minHeight: 380)
+                .frame(minWidth: 820, minHeight: 480)
         }
+        .defaultSize(width: 1040, height: 640)
         .commands {
             CommandGroup(replacing: .newItem) {
                 AddURLCommand()
