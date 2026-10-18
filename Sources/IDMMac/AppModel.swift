@@ -9,6 +9,7 @@ final class AppModel: ObservableObject {
 
     @Published var downloads: [DownloadRecord] = []
     @Published var browsersLinked: [String] = []
+    @Published var speedHistory: [Double] = Array(repeating: 0, count: 60)
 
     @AppStorage("downloadDirectory") var downloadDirectory: String = FileManager.default
         .urls(for: .downloadsDirectory, in: .userDomainMask)[0].path
@@ -22,6 +23,7 @@ final class AppModel: ObservableObject {
     private var server: IPCServer?
     private var sleepActivity: NSObjectProtocol?
     private var saveTimer: Timer?
+    private var speedTimer: Timer?
     private let videoWindows = VideoWindowController()
 
     func boot() {
@@ -39,6 +41,13 @@ final class AppModel: ObservableObject {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
         saveTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
             Task { @MainActor in AppModel.shared.save() }
+        }
+        speedTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            Task { @MainActor in
+                let m = AppModel.shared
+                m.speedHistory.append(m.totalSpeed)
+                if m.speedHistory.count > 60 { m.speedHistory.removeFirst(m.speedHistory.count - 60) }
+            }
         }
         pump()
     }

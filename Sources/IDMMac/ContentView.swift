@@ -6,45 +6,59 @@ struct ContentView: View {
     @State private var showAdd = false
     @State private var showExtensionHelp = false
     @State private var selection = Set<UUID>()
+    @State private var sidebar: SidebarItem? = .all
+
+    private var filtered: [DownloadRecord] {
+        let f = sidebar ?? .all
+        return model.downloads.filter { f.matches($0) }
+    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if model.downloads.isEmpty {
-                EmptyState(showExtensionHelp: $showExtensionHelp)
-            } else {
-                List(selection: $selection) {
-                    ForEach(model.downloads) { d in
-                        DownloadRow(record: d).tag(d.id)
-                            .contextMenu { rowMenu(d) }
+        NavigationSplitView {
+            Sidebar(selection: $sidebar)
+                .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
+        } detail: {
+            VStack(spacing: 0) {
+                if model.downloads.isEmpty {
+                    EmptyState(showExtensionHelp: $showExtensionHelp)
+                } else if filtered.isEmpty {
+                    Text("Bu bölümde indirme yok").foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List(selection: $selection) {
+                        ForEach(filtered) { d in
+                            DownloadRow(record: d).tag(d.id)
+                                .contextMenu { rowMenu(d) }
+                        }
+                    }
+                    .listStyle(.inset(alternatesRowBackgrounds: true))
+                }
+                Divider()
+                HStack {
+                    Text(model.activeCount > 0 ? "\(model.activeCount) etkin indirme · \(Format.speed(model.totalSpeed))" : "Hazır")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    if model.browsersLinked.isEmpty {
+                        Text("Chrome bulunamadı").font(.caption).foregroundStyle(.orange)
                     }
                 }
-                .listStyle(.inset(alternatesRowBackgrounds: true))
+                .padding(.horizontal, 12).padding(.vertical, 6)
             }
-            Divider()
-            HStack {
-                Text(model.activeCount > 0 ? "\(model.activeCount) etkin indirme · \(Format.speed(model.totalSpeed))" : "Hazır")
-                    .font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                if model.browsersLinked.isEmpty {
-                    Text("Chrome bulunamadı").font(.caption).foregroundStyle(.orange)
+            .navigationTitle((sidebar ?? .all).title)
+            .toolbar {
+                ToolbarItemGroup {
+                    Button { showAdd = true } label: { Label("Adres ekle", systemImage: "plus") }
+                    Button { model.resumeAll() } label: { Label("Tümünü sürdür", systemImage: "play.fill") }
+                    Button { model.pauseAll() } label: { Label("Tümünü duraklat", systemImage: "pause.fill") }
+                    Button { model.clearCompleted() } label: { Label("Bitenleri temizle", systemImage: "checkmark.circle") }
+                    Button { showExtensionHelp = true } label: { Label("Chrome eklentisi", systemImage: "puzzlepiece.extension") }
                 }
-            }
-            .padding(.horizontal, 12).padding(.vertical, 6)
-        }
-        .toolbar {
-            ToolbarItemGroup {
-                Button { showAdd = true } label: { Label("Adres ekle", systemImage: "plus") }
-                Button { model.resumeAll() } label: { Label("Tümünü sürdür", systemImage: "play.fill") }
-                Button { model.pauseAll() } label: { Label("Tümünü duraklat", systemImage: "pause.fill") }
-                Button { model.clearCompleted() } label: { Label("Bitenleri temizle", systemImage: "checkmark.circle") }
-                Button { showExtensionHelp = true } label: { Label("Chrome eklentisi", systemImage: "puzzlepiece.extension") }
             }
         }
         .sheet(isPresented: $showAdd) { AddURLSheet() }
         .sheet(isPresented: $showExtensionHelp) { ExtensionHelpSheet() }
         .onReceive(NotificationCenter.default.publisher(for: .showAddURL)) { _ in showAdd = true }
         .onDeleteCommand { selection.forEach { model.remove($0) } }
-        .navigationTitle("IDM Mac")
     }
 
     @ViewBuilder
@@ -71,13 +85,18 @@ struct DownloadRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: record.kind == .video ? "film" : icon)
-                .font(.title2).foregroundStyle(.secondary).frame(width: 28)
+            let cat = Category.of(record)
+            ZStack {
+                RoundedRectangle(cornerRadius: 8).fill(cat.color.gradient)
+                Image(systemName: cat.icon).font(.system(size: 16, weight: .semibold)).foregroundStyle(.white)
+            }
+            .frame(width: 36, height: 36)
+            .overlay(alignment: .bottomTrailing) { stateBadge }
             VStack(alignment: .leading, spacing: 3) {
                 Text(record.fileName.isEmpty ? record.url : record.fileName).lineLimit(1).truncationMode(.middle)
                 if record.state == .downloading || record.state == .paused {
                     if record.totalBytes > 0 {
-                        ProgressView(value: record.progress)
+                        SegmentBar(record: record, tint: record.state == .paused ? .gray : Category.of(record).color)
                     } else {
                         ProgressView().progressViewStyle(.linear)
                     }
@@ -91,16 +110,17 @@ struct DownloadRow: View {
         .onTapGesture(count: 2) { if record.state == .completed { model.open(record) } }
     }
 
-    private var icon: String {
-        let ext = (record.fileName as NSString).pathExtension.lowercased()
-        switch ext {
-        case "zip", "rar", "7z", "gz", "tar", "xz", "bz2": return "doc.zipper"
-        case "dmg", "pkg", "iso", "img": return "externaldrive"
-        case "mp3", "m4a", "flac", "wav", "aac", "ogg": return "music.note"
-        case "mp4", "mkv", "mov", "avi", "webm", "m4v": return "film"
-        case "pdf": return "doc.richtext"
-        case "jpg", "jpeg", "png", "gif", "heic", "webp": return "photo"
-        default: return "doc"
+    @ViewBuilder
+    private var stateBadge: some View {
+        switch record.state {
+        case .completed:
+            Image(systemName: "checkmark.circle.fill").foregroundStyle(.white, .green).font(.system(size: 13)).offset(x: 4, y: 4)
+        case .failed:
+            Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.white, .red).font(.system(size: 13)).offset(x: 4, y: 4)
+        case .paused:
+            Image(systemName: "pause.circle.fill").foregroundStyle(.white, .gray).font(.system(size: 13)).offset(x: 4, y: 4)
+        default:
+            EmptyView()
         }
     }
 
