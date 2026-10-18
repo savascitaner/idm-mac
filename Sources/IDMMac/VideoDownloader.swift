@@ -10,12 +10,43 @@ struct VideoOption: Identifiable, Hashable {
     var audioOnly: Bool
 }
 
+/// One audio language of a video (YouTube offers dubbed tracks next to the original).
+struct AudioTrack: Identifiable, Hashable {
+    var id: String { code }
+    var code: String       // yt-dlp "language", e.g. "tr" or "en-US"
+    var name: String
+    var isOriginal: Bool
+
+    var label: String { isOriginal ? "\(name) (orijinal)" : name }
+}
+
 struct VideoInfo {
     var title: String
     var webpageURL: String
     var thumbnail: String?
     var duration: Double?
     var options: [VideoOption]
+    var audioTracks: [AudioTrack] = []
+
+    /// The track to preselect: the Mac's language if the video has it, otherwise the original.
+    var defaultTrack: AudioTrack? {
+        guard audioTracks.count > 1 else { return nil }
+        let mine = Locale.current.language.languageCode?.identifier ?? "tr"
+        return audioTracks.first { $0.code.lowercased().hasPrefix(mine) }
+            ?? audioTracks.first(where: \.isOriginal) ?? audioTracks.first
+    }
+}
+
+struct PlaylistEntry: Identifiable {
+    var id: String
+    var url: String
+    var title: String
+    var thumbnail: String?
+}
+
+struct PlaylistInfo {
+    var title: String
+    var entries: [PlaylistEntry]
 }
 
 enum YtDlp {
@@ -34,8 +65,8 @@ enum YtDlp {
         }
     }
 
-    static func commonArgs(cookieFile: URL?, headers: [String: String]) -> [String] {
-        var a = ["--no-playlist", "--no-warnings", "--no-mtime"]
+    static func commonArgs(cookieFile: URL?, headers: [String: String], playlist: Bool = false) -> [String] {
+        var a = [playlist ? "--yes-playlist" : "--no-playlist", "--no-warnings", "--no-mtime"]
         if let c = cookieFile { a += ["--cookies", c.path] }
         if let ua = headers["User-Agent"], !ua.isEmpty { a += ["--user-agent", ua] }
         if let r = headers["Referer"], !r.isEmpty { a += ["--referer", r] }
@@ -44,9 +75,8 @@ enum YtDlp {
         return a
     }
 
-    /// Runs `yt-dlp -J` and turns the format list into a few simple choices.
-    static func probe(url: String, cookieFile: URL?, headers: [String: String],
-                      completion: @escaping (Result<VideoInfo, Error>) -> Void) {
+    /// Runs yt-dlp with the given arguments off the main thread; returns its stdout, or the error it printed.
+    private static func run(_ args: [String], completion: @escaping (Result<Data, Error>) -> Void) {
         guard let exe = Tools.ytdlp else {
             completion(.failure(Failure("yt-dlp bulunamadı")))
             return
@@ -54,7 +84,7 @@ enum YtDlp {
         DispatchQueue.global(qos: .userInitiated).async {
             let p = Process()
             p.executableURL = exe
-            p.arguments = commonArgs(cookieFile: cookieFile, headers: headers) + ["-J", url]
+            p.arguments = args
             let out = Pipe(), err = Pipe()
             p.standardOutput = out
             p.standardError = err
@@ -71,14 +101,74 @@ enum YtDlp {
             let data = out.fileHandleForReading.readDataToEndOfFile()
             errDone.wait()
             p.waitUntilExit()
-            let result: Result<VideoInfo, Error>
-            if p.terminationStatus == 0, let info = parse(data, fallbackURL: url) {
-                result = .success(info)
-            } else {
-                result = .failure(Failure(lastLines(errData) ?? "Video bilgisi alınamadı"))
-            }
+            let result: Result<Data, Error> = p.terminationStatus == 0
+                ? .success(data)
+                : .failure(Failure(lastLines(errData) ?? "Video bilgisi alınamadı"))
             DispatchQueue.main.async { completion(result) }
         }
+    }
+
+    /// Runs `yt-dlp -J` and turns the format list into a few simple choices.
+    static func probe(url: String, cookieFile: URL?, headers: [String: String],
+                      completion: @escaping (Result<VideoInfo, Error>) -> Void) {
+        run(commonArgs(cookieFile: cookieFile, headers: headers) + ["-J", url]) { r in
+            completion(r.flatMap { data -> Result<VideoInfo, Error> in
+                if let info = parse(data, fallbackURL: url) { return .success(info) }
+                return .failure(Failure("Video bilgisi alınamadı"))
+            })
+        }
+    }
+
+    /// Lists a playlist's videos without fetching each one (`--flat-playlist`).
+    static func probePlaylist(url: String, cookieFile: URL?, headers: [String: String],
+                              completion: @escaping (Result<PlaylistInfo, Error>) -> Void) {
+        run(commonArgs(cookieFile: cookieFile, headers: headers, playlist: true) + ["--flat-playlist", "-J", url]) { r in
+            completion(r.flatMap { data -> Result<PlaylistInfo, Error> in
+                if let list = parsePlaylist(data) { return .success(list) }
+                return .failure(Failure("Oynatma listesi okunamadı"))
+            })
+        }
+    }
+
+    static func parsePlaylist(_ data: Data) -> PlaylistInfo? {
+        guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              json["_type"] as? String == "playlist",
+              let entries = json["entries"] as? [[String: Any]] else { return nil }
+        let list: [PlaylistEntry] = entries.compactMap { e in
+            guard let id = e["id"] as? String else { return nil }
+            var url = e["url"] as? String ?? id
+            if !url.hasPrefix("http") { url = "https://www.youtube.com/watch?v=\(id)" }
+            let thumbs = e["thumbnails"] as? [[String: Any]] ?? []
+            return PlaylistEntry(id: id, url: url, title: e["title"] as? String ?? id,
+                                 thumbnail: thumbs.last?["url"] as? String)
+        }
+        guard !list.isEmpty else { return nil }
+        return PlaylistInfo(title: json["title"] as? String ?? "Oynatma listesi", entries: list)
+    }
+
+    /// Restricts a format selector to one audio language, falling back to the default track.
+    static func format(_ base: String, audioOnly: Bool, language: String?) -> String {
+        guard let l = language, !l.isEmpty else { return base }
+        return audioOnly ? "ba[language=\(l)]/\(base)" : "bv*+ba[language=\(l)]/\(base)"
+    }
+
+    /// Distinct audio languages among the formats, original first.
+    static func audioTracks(_ formats: [[String: Any]]) -> [AudioTrack] {
+        let names = Locale(identifier: "tr")
+        var seen: [String: AudioTrack] = [:]
+        for f in formats where (f["acodec"] as? String ?? "none") != "none" {
+            guard let code = f["language"] as? String, !code.isEmpty, code != "und" else { continue }
+            let note = (f["format_note"] as? String ?? "").lowercased()
+            let original = note.contains("original") || ((f["language_preference"] as? NSNumber)?.intValue ?? 0) >= 10
+            let name = names.localizedString(forIdentifier: code.replacingOccurrences(of: "-", with: "_")) ?? code
+            if var t = seen[code] {
+                t.isOriginal = t.isOriginal || original
+                seen[code] = t
+            } else {
+                seen[code] = AudioTrack(code: code, name: name.prefix(1).uppercased() + String(name.dropFirst()), isOriginal: original)
+            }
+        }
+        return seen.values.sorted { a, b in a.isOriginal != b.isOriginal ? a.isOriginal : a.name < b.name }
     }
 
     static func parse(_ data: Data, fallbackURL: String) -> VideoInfo? {
@@ -118,7 +208,8 @@ enum YtDlp {
                          webpageURL: json["webpage_url"] as? String ?? fallbackURL,
                          thumbnail: json["thumbnail"] as? String,
                          duration: (json["duration"] as? NSNumber)?.doubleValue,
-                         options: options)
+                         options: options,
+                         audioTracks: audioTracks(formats))
     }
 
     static func lastLines(_ data: Data) -> String? {
@@ -157,7 +248,7 @@ final class VideoDownloader {
         var args = YtDlp.commonArgs(cookieFile: cookieFile, headers: record.headers)
         args += ["--newline", "--progress", "-N", "8",
                  "-f", record.videoFormat ?? "bv*+ba/b",
-                 "-o", "\(record.directory)/%(title).180B [%(id)s].%(ext)s",
+                 "-o", "\(record.directory)/\(record.playlistIndex.map { String(format: "%03d - ", $0) } ?? "")%(title).180B [%(id)s].%(ext)s",
                  "--progress-template", "download:IDMPROG %(progress.downloaded_bytes)s|%(progress.total_bytes)s|%(progress.total_bytes_estimate)s|%(progress.speed)s",
                  "--print", "after_move:IDMFILE %(filepath)s"]
         if let s = record.videoSort { args += ["-S", s] }

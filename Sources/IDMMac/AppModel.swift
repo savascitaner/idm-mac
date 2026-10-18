@@ -181,16 +181,42 @@ final class AppModel: ObservableObject {
         pump()
     }
 
-    func addVideo(info: VideoInfo, option: VideoOption, headers: [String: String], cookies: [BrowserCookie]) {
-        var rec = DownloadRecord(kind: .video, url: info.webpageURL, pageURL: headers["Referer"],
-                                 fileName: info.title + (option.audioOnly ? " (ses)" : " (\(option.label))"),
-                                 directory: downloadDirectory, headers: headers, cookies: cookies)
-        rec.videoFormat = option.format
+    func addVideo(info: VideoInfo, option: VideoOption, track: AudioTrack? = nil,
+                  headers: [String: String], cookies: [BrowserCookie]) {
+        insertVideo(url: info.webpageURL, title: info.title, thumbnail: info.thumbnail, option: option, track: track,
+                    directory: downloadDirectory, index: nil, headers: headers, cookies: cookies)
+        pump()
+    }
+
+    /// Queues every video of a playlist into its own folder; they download `maxParallel` at a time.
+    func addPlaylist(_ list: PlaylistInfo, option: VideoOption, track: AudioTrack?,
+                     headers: [String: String], cookies: [BrowserCookie]) {
+        let dir = URL(fileURLWithPath: downloadDirectory)
+            .appendingPathComponent(FileMeta.sanitize(list.title), isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        for (i, e) in list.entries.enumerated() {
+            insertVideo(url: e.url, title: e.title, thumbnail: e.thumbnail ?? "https://i.ytimg.com/vi/\(e.id)/hqdefault.jpg",
+                        option: option, track: track, directory: dir.path, index: i + 1, headers: headers, cookies: cookies)
+        }
+        notifyUser("Oynatma listesi sıraya alındı", "\(list.title): \(list.entries.count) video")
+        pump()
+    }
+
+    private func insertVideo(url: String, title: String, thumbnail: String?, option: VideoOption, track: AudioTrack?,
+                             directory: String, index: Int?, headers: [String: String], cookies: [BrowserCookie]) {
+        var label = option.audioOnly ? "ses" : option.label
+        if let t = track { label += ", \(t.name)" }
+        var rec = DownloadRecord(kind: .video, url: url, pageURL: headers["Referer"],
+                                 fileName: (index.map { String(format: "%03d - ", $0) } ?? "") + title + " (\(label))",
+                                 directory: directory, headers: headers, cookies: cookies)
+        rec.videoFormat = YtDlp.format(option.format, audioOnly: option.audioOnly, language: track?.code)
         rec.videoSort = option.sort
         rec.audioOnly = option.audioOnly
-        rec.thumbnail = info.thumbnail
+        rec.thumbnail = thumbnail
+        rec.audioLanguage = track?.code
+        rec.playlistIndex = index
+        // Playlist items go in queue order: pump() starts from the end of the list.
         downloads.insert(rec, at: 0)
-        pump()
     }
 
     func addFromUserInput(_ text: String) {

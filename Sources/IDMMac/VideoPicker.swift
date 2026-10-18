@@ -23,7 +23,7 @@ final class VideoWindowController {
         w.styleMask = [.titled, .closable, .utilityWindow]
         w.level = .floating
         w.isReleasedWhenClosed = false
-        w.setContentSize(NSSize(width: 460, height: 380))
+        w.setContentSize(NSSize(width: 480, height: 480))
         w.center()
         windows[req.id] = w
         NSApp.activate(ignoringOtherApps: true)
@@ -45,6 +45,16 @@ struct VideoPickerView: View {
     @State private var selection: VideoOption?
     @State private var loading = true
     @State private var usedCookies = false
+    @State private var playlist: PlaylistInfo?
+    @State private var wholeList = false
+    @State private var track: AudioTrack?
+
+    private var query: [URLQueryItem] { URLComponents(string: request.pageURL)?.queryItems ?? [] }
+    private var listID: String? { query.first { $0.name == "list" }?.value }
+    /// A watch page inside a playlist has both v= and list=; a playlist page has only list=.
+    private var hasVideo: Bool {
+        query.contains { $0.name == "v" } || request.pageURL.contains("/shorts/") || request.pageURL.contains("youtu.be/")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -69,6 +79,28 @@ struct VideoPickerView: View {
                         if let d = info.duration, d > 0 {
                             Text(String(format: "%d:%02d", Int(d) / 60, Int(d) % 60)).font(.caption).foregroundStyle(.secondary)
                         }
+                    }
+                }
+                if let playlist {
+                    if hasVideo {
+                        Picker("", selection: $wholeList) {
+                            Text("Sadece bu video").tag(false)
+                            Text("Tüm liste (\(playlist.entries.count) video)").tag(true)
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                    } else {
+                        Label("Oynatma listesi: \(playlist.title) · \(playlist.entries.count) video", systemImage: "list.bullet.rectangle")
+                            .font(.callout).lineLimit(1)
+                    }
+                    if wholeList {
+                        Text("Videolar İndirilenler'de \"\(FileMeta.sanitize(playlist.title))\" klasörüne sırayla iner; seçtiğin kalite ve dil hepsine uygulanır.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                if info.audioTracks.count > 1 {
+                    Picker("Ses dili (dublaj)", selection: $track) {
+                        ForEach(info.audioTracks) { t in Text(t.label).tag(Optional(t)) }
                     }
                 }
                 Text("Kalite").font(.subheadline.bold())
@@ -99,9 +131,16 @@ struct VideoPickerView: View {
                     }
                 }
                 if let info {
-                    Button("İndir") {
-                        AppModel.shared.addVideo(info: info, option: selection ?? info.options[0],
-                                                 headers: request.headers, cookies: usedCookies ? request.cookies : [])
+                    Button(wholeList ? "Listeyi indir" : "İndir") {
+                        let option = selection ?? info.options[0]
+                        let cookies = usedCookies ? request.cookies : []
+                        if wholeList, let playlist {
+                            AppModel.shared.addPlaylist(playlist, option: option, track: track,
+                                                        headers: request.headers, cookies: cookies)
+                        } else {
+                            AppModel.shared.addVideo(info: info, option: option, track: track,
+                                                     headers: request.headers, cookies: cookies)
+                        }
                         dismiss()
                     }
                     .keyboardShortcut(.defaultAction)
@@ -109,7 +148,7 @@ struct VideoPickerView: View {
             }
         }
         .padding(16)
-        .frame(width: 460, height: 380)
+        .frame(width: 480, height: 480)
         .onAppear(perform: load)
     }
 
@@ -117,10 +156,29 @@ struct VideoPickerView: View {
     /// and sending them can make YouTube rotate the browser session), then with the browser cookies,
     /// then the media URL the extension saw.
     private func load() {
+        guard listID != nil else { return probeVideo(request.pageURL) }
+        if hasVideo { probeVideo(request.pageURL) }
+        YtDlp.probePlaylist(url: request.pageURL, cookieFile: nil, headers: request.headers) { r in
+            if case .success(let list) = r {
+                playlist = list
+                if !hasVideo { wholeList = true }
+            }
+            guard !hasVideo else { return }
+            // A playlist page has no video of its own: offer the qualities and languages of its first video.
+            if let first = playlist?.entries.first {
+                probeVideo(first.url)
+            } else {
+                if case .failure(let e) = r { error = e.localizedDescription }
+                loading = false
+            }
+        }
+    }
+
+    private func probeVideo(_ page: String) {
         let cookieFile = YtDlp.cookieFile(for: request.id, cookies: request.cookies)
-        var attempts: [(url: String, cookies: URL?)] = [(request.pageURL, nil)]
-        if let c = cookieFile { attempts.append((request.pageURL, c)) }
-        if let m = request.mediaURL, !m.isEmpty, !m.hasPrefix("blob:"), m != request.pageURL {
+        var attempts: [(url: String, cookies: URL?)] = [(page, nil)]
+        if let c = cookieFile { attempts.append((page, c)) }
+        if page == request.pageURL, let m = request.mediaURL, !m.isEmpty, !m.hasPrefix("blob:"), m != page {
             attempts.append((m, cookieFile))
         }
         run(attempts, firstError: nil) { result in
@@ -130,6 +188,7 @@ struct VideoPickerView: View {
                 info = i
                 usedCookies = withCookies
                 selection = i.options.first
+                track = i.defaultTrack
             case .failure(let e):
                 error = e.localizedDescription
             }
