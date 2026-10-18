@@ -95,8 +95,8 @@ struct ContentView: View {
         .sheet(isPresented: $showExtensionHelp) { ExtensionHelpSheet() }
         .onReceive(NotificationCenter.default.publisher(for: .showAddURL)) { _ in showAdd = true }
         .onDeleteCommand { selection.forEach { model.remove($0) } }
-        .onAppear {
-            if model.isDemo, let first = model.downloads.first { selection = [first.id] }
+        .onReceive(model.$downloads) { list in
+            if model.isDemo, selection.isEmpty, let first = list.first { selection = [first.id] }
         }
     }
 

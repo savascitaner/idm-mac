@@ -459,7 +459,7 @@ enum DemoData {
         dmg.segments = segments(total: dmg.totalBytes, n: 8, done: [1, 0.82, 0.64, 0.9, 0.41, 1, 0.55, 0.3])
         dmg.connections = 8
         var video = rec(.video, "Lo-fi müzik, 1 saat (1080p)", .downloading, 860_000_000)
-        video.thumbnail = "https://i.ytimg.com/vi/jfKfPfyJRdk/hqdefault.jpg"
+        video.thumbnail = "https://i.ytimg.com/vi/jNQXAC9IVRw/hqdefault.jpg"
         video.receivedBytes = 310_000_000
         video.connections = 8
         var iso = rec(.file, "ubuntu-24.04-desktop-amd64.iso", .paused, 6_100_000_000)
