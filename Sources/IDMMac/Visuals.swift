@@ -121,7 +121,7 @@ struct SpeedChart: View {
             .chartXAxis(.hidden)
             .chartYAxis(.hidden)
             .frame(height: 44)
-            Text("En yüksek: " + (Format.speed(peak).isEmpty ? "—" : Format.speed(peak)))
+            Text("En yüksek: " + (peak <= 1 ? "—" : Format.speed(peak)))
                 .font(.caption2).foregroundStyle(.secondary)
         }
         .padding(10)
