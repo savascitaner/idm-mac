@@ -47,7 +47,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --yes --cleanup-tag || true
-          gh release create latest dist/IDM-Mac.dmg --prerelease --target "$GITHUB_SHA" \
+          FILES="dist/IDM-Mac.dmg"
+          [ -f dist/screenshot.png ] && FILES="$FILES dist/screenshot.png"
+          gh release create latest $FILES --prerelease --target "$GITHUB_SHA" \
             --title "Son sürüm (${GITHUB_SHA::7})" \
             --notes "main dalından otomatik üretilen son sürüm. Kurulum için DMG içindeki BENİ OKU dosyasına bak."
 
