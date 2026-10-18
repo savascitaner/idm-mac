@@ -15,6 +15,14 @@
     <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
     <key>NSHumanReadableCopyright</key><string>© 2026 __OWNER__. Tüm hakları saklıdır.</string>
     <key>NSHighResolutionCapable</key><true/>
+    <key>IDMBridgeToken</key><string>__TOKEN__</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key><string>com.savascitaner.idmmac.bridge</string>
+            <key>CFBundleURLSchemes</key><array><string>idmmac</string></array>
+        </dict>
+    </array>
     <key>NSSupportsAutomaticTermination</key><false/>
     <key>NSSupportsSuddenTermination</key><false/>
 </dict>

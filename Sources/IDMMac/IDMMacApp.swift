@@ -7,6 +7,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppModel.shared.boot()
     }
 
+    /// idmmac:// links come from the Safari extension.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            if let msg = SafariBridge.message(from: url) { AppModel.shared.receive(msg) }
+        }
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         AppModel.shared.pauseAll()
         AppModel.shared.save()

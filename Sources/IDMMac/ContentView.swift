@@ -1,4 +1,5 @@
 import AppKit
+import SafariServices
 import SwiftUI
 
 struct ContentView: View {
@@ -85,7 +86,7 @@ struct ContentView: View {
                     Button { model.resumeAll() } label: { Label("Tümünü sürdür", systemImage: "play.fill") }
                     Button { model.pauseAll() } label: { Label("Tümünü duraklat", systemImage: "pause.fill") }
                     Button { model.clearCompleted() } label: { Label("Bitenleri temizle", systemImage: "checkmark.circle") }
-                    Button { showExtensionHelp = true } label: { Label("Chrome eklentisi", systemImage: "puzzlepiece.extension") }
+                    Button { showExtensionHelp = true } label: { Label("Tarayıcı eklentisi", systemImage: "puzzlepiece.extension") }
                     Button { showInspector.toggle() } label: { Label("Ayrıntı paneli", systemImage: "sidebar.right") }
                         .help("Ayrıntı panelini aç/kapat")
                 }
@@ -241,8 +242,45 @@ struct AddURLSheet: View {
 struct ExtensionHelpSheet: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.dismiss) private var dismiss
+    @State private var browser = 0
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Picker("", selection: $browser) {
+                Text("Chrome").tag(0)
+                Text("Safari").tag(1)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            if browser == 0 { chrome } else { safari }
+            HStack {
+                Spacer()
+                Button("Tamam") { dismiss() }.keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 560)
+    }
+
+    private var safari: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Safari uzantısını aç").font(.title3.bold())
+            VStack(alignment: .leading, spacing: 8) {
+                Text("1. Safari > Ayarlar > **Gelişmiş** sekmesinde **Web geliştiricileri için özellikleri göster** kutusunu işaretle.")
+                Text("2. Safari > Ayarlar > **Geliştirici** sekmesinde **İmzasız uzantılara izin ver** kutusunu işaretle.")
+                Text("3. Safari > Ayarlar > **Uzantılar**'da **IDM Mac**'i işaretle, sonra **Tüm web sitelerinde her zaman izin ver**'i seç.")
+                Text("Uygulama Apple imzalı olmadığı için 2. adım Safari her kapanınca sıfırlanır; Safari'yi her açtığında yeniden işaretle.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("Safari'de linke tıklayınca yakalama sadece .dmg, .zip, .mp4 gibi uzantısı belli linklerde çalışır. Video butonu ve sağ tık menüsü Chrome'daki gibi çalışır.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Button("Safari'de uzantı ayarlarını aç") {
+                SFSafariApplication.showPreferencesForExtension(withIdentifier: SafariBridge.extensionID) { _ in }
+            }
+        }
+    }
+
+    private var chrome: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Chrome eklentisini kur").font(.title3.bold())
             VStack(alignment: .leading, spacing: 8) {
@@ -270,12 +308,6 @@ struct ExtensionHelpSheet: View {
                  ? "Uyarı: Chrome profili bulunamadı. Chrome'u bir kez açıp bu uygulamayı yeniden başlat."
                  : "Bağlanan tarayıcılar: " + model.browsersLinked.joined(separator: ", "))
                 .font(.caption).foregroundStyle(model.browsersLinked.isEmpty ? .orange : .secondary)
-            HStack {
-                Spacer()
-                Button("Tamam") { dismiss() }.keyboardShortcut(.defaultAction)
-            }
         }
-        .padding(20)
-        .frame(width: 560)
     }
 }

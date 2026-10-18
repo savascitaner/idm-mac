@@ -17,3 +17,11 @@ IDM Mac kurulumu
 4) Chrome'u kapatıp yeniden aç. Artık:
    - İndirme linklerine tıklayınca indirme otomatik olarak IDM Mac'e geçer.
    - YouTube, Vimeo, X vb. sitelerde videonun üstüne gelince "Bu videoyu indir" butonu çıkar.
+
+5) Safari kullanıyorsan (isteğe bağlı):
+   - Safari > Ayarlar > Gelişmiş > "Web geliştiricileri için özellikleri göster" kutusunu işaretle.
+   - Safari > Ayarlar > Geliştirici > "İmzasız uzantılara izin ver" kutusunu işaretle (parola sorar).
+   - Safari > Ayarlar > Uzantılar > "IDM Mac" kutusunu işaretle ve tüm web sitelerine izin ver.
+   Uygulama Apple imzalı olmadığı için "İmzasız uzantılara izin ver" ayarı Safari her
+   kapanınca sıfırlanır; Safari'yi her açışında bu kutuyu yeniden işaretlemen gerekir.
+   Safari'de linke tıklayınca yakalama sadece .dmg, .zip, .mp4 gibi uzantısı belli linklerde çalışır.

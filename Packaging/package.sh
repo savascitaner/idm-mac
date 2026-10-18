@@ -17,8 +17,23 @@ rm -rf dist
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/bin"
 cp "$BIN/IDMMac" "$BIN/IDMMacHost" "$APP/Contents/MacOS/"
 OWNER="${OWNER:-Enes Savaşçı}"
-sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" -e "s/__OWNER__/$OWNER/" Packaging/Info.plist > "$APP/Contents/Info.plist"
+# Shared secret between the app and its Safari extension (see SafariBridge.swift).
+TOKEN="$(uuidgen | tr -d '-')"
+fill() { sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" -e "s/__OWNER__/$OWNER/" -e "s/__TOKEN__/$TOKEN/" "$1"; }
+fill Packaging/Info.plist > "$APP/Contents/Info.plist"
 cp -R Extension "$APP/Contents/Resources/ChromeExtension"
+
+echo "==> Safari extension"
+APPEX="$APP/Contents/PlugIns/IDMMacSafari.appex"
+mkdir -p "$APPEX/Contents/MacOS" "$APPEX/Contents/Resources"
+swiftc -O -parse-as-library -application-extension -target arm64-apple-macos13.0 -module-name IDMMacSafari \
+  -Xlinker -e -Xlinker _NSExtensionMain -framework SafariServices -framework AppKit \
+  Safari/Handler.swift -o "$APPEX/Contents/MacOS/IDMMacSafari"
+fill Safari/Info.plist > "$APPEX/Contents/Info.plist"
+cp Safari/Web/* "$APPEX/Contents/Resources/"
+cp -R Extension/content.js Extension/popup.html Extension/popup.js Extension/icons "$APPEX/Contents/Resources/"
+plutil -lint "$APP/Contents/Info.plist" "$APPEX/Contents/Info.plist"
+python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$APPEX/Contents/Resources/manifest.json"
 cp THIRD_PARTY.md "$APP/Contents/Resources/THIRD_PARTY.md"
 
 echo "==> Icon"
@@ -63,6 +78,7 @@ for f in "$APP"/Contents/Resources/bin/*; do
   codesign --verify "$f" 2>/dev/null || codesign --force --sign - "$f"
 done
 codesign --force --sign - "$APP/Contents/MacOS/IDMMacHost"
+codesign --force --sign - --entitlements Safari/entitlements.plist "$APPEX"
 codesign --force --sign - "$APP"
 codesign --verify --verbose "$APP"
 

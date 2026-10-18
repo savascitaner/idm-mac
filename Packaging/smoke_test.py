@@ -5,8 +5,10 @@ Launches the built app, talks to it through the real native messaging host exact
 Chrome does (4-byte length + JSON on stdin/stdout), asks it to download a test file and
 checks that the file arrives complete with macOS download metadata.
 """
+import base64
 import json
 import os
+import plistlib
 import struct
 import subprocess
 import sys
@@ -132,6 +134,51 @@ def main():
     print("html fallback:", got)
     if not any(m.get("type") == "fallback" for m in got):
         fail("HTML response was not handed back to the browser")
+
+    # Safari extension: bundled and signed, and the idmmac:// bridge it uses reaches the app.
+    appex = APP / "Contents/PlugIns/IDMMacSafari.appex"
+    if not (appex / "Contents/Resources/manifest.json").exists():
+        fail("Safari extension is not in the bundle")
+    ent = subprocess.run(["codesign", "-d", "--entitlements", "-", "--xml", str(appex)], capture_output=True, text=True)
+    print("appex entitlements:", ent.stdout.strip()[-300:])
+    if "app-sandbox" not in ent.stdout:
+        fail("Safari extension is not sandboxed")
+    pk = subprocess.run(["pluginkit", "-m", "-v", "-i", "com.savascitaner.idmmac.Extension"], capture_output=True, text=True)
+    print("pluginkit:", pk.stdout.strip() or pk.stderr.strip() or "(not listed)")
+
+    token = plistlib.load(open(APP / "Contents/Info.plist", "rb"))["IDMBridgeToken"]
+    if token != plistlib.load(open(appex / "Contents/Info.plist", "rb"))["IDMBridgeToken"]:
+        fail("app and Safari extension have different bridge tokens")
+
+    def bridge(tok, target):
+        msg = {"type": "download", "id": "s1", "url": target, "filename": "", "referrer": "https://example.com/",
+               "userAgent": "Mozilla/5.0 Safari", "cookies": []}
+        d = base64.urlsafe_b64encode(json.dumps(msg).encode()).decode().rstrip("=")
+        subprocess.run(["open", "-g", f"idmmac://message?t={tok}&d={d}"], check=True, timeout=30)
+
+    def record_for(target):
+        try:
+            return next((r for r in json.loads(DB.read_text()) if r.get("url") == target), None)
+        except (OSError, ValueError):
+            return None
+
+    sep = "&" if "?" in url else "?"
+    bad = url + sep + "src=forged"
+    bridge("wrongtoken", bad)
+    good = url + sep + "src=safari"
+    bridge(token, good)
+    rec = None
+    deadline = time.time() + 180
+    while time.time() < deadline:
+        time.sleep(3)
+        rec = record_for(good)
+        if rec and rec["state"] in ("completed", "failed"):
+            break
+    print("safari bridge:", rec and rec["state"])
+    if not rec or rec["state"] != "completed":
+        fail("download sent through the Safari bridge did not complete")
+    if record_for(bad):
+        fail("bridge accepted a message with a wrong token")
 
     ytdlp = SUPPORT / "bin/yt-dlp"
     if not ytdlp.exists():

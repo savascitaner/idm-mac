@@ -34,6 +34,8 @@ final class AppModel: ObservableObject {
     private let videoWindows = VideoWindowController()
     private var dockHost: NSHostingView<DockTileView>?
     private var ticks = 0
+    private var booted = false
+    private var early: [[String: Any]] = []
 
     func boot() {
         if isDemo {
@@ -59,7 +61,16 @@ final class AppModel: ObservableObject {
         speedTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
             Task { @MainActor in AppModel.shared.tick() }
         }
+        SafariBridge.registerExtension()
+        booted = true
+        early.forEach(handle)
+        early = []
         pump()
+    }
+
+    /// Messages can arrive (via idmmac:// links) before boot has loaded the saved list.
+    func receive(_ msg: [String: Any]) {
+        if booted { handle(msg) } else { early.append(msg) }
     }
 
     /// Runs once a second: speed graphs, Dock progress, disk space.
