@@ -9,6 +9,12 @@ on:
 permissions:
   contents: write
 
+# One build per branch at a time; a newer push replaces an older build so two runs
+# never replace the "latest" release at the same moment.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: macos-14
