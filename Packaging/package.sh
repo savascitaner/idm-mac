@@ -19,6 +19,15 @@ cp "$BIN/IDMMac" "$BIN/IDMMacHost" "$APP/Contents/MacOS/"
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" Packaging/Info.plist > "$APP/Contents/Info.plist"
 cp -R Extension "$APP/Contents/Resources/ChromeExtension"
 
+echo "==> Icon"
+ICONSET="$TMP/AppIcon.iconset"
+mkdir -p "$ICONSET"
+for s in 16 32 128 256 512; do
+  sips -z $s $s Packaging/AppIcon.png --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
+  sips -z $((s*2)) $((s*2)) Packaging/AppIcon.png --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
+done
+iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
+
 echo "==> yt-dlp"
 curl -fsSL --retry 3 -o "$APP/Contents/Resources/bin/yt-dlp" \
   https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos
