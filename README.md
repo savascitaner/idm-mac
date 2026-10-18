@@ -22,3 +22,7 @@ Son sürüm: [IDM-Mac.dmg](../../releases/download/latest/IDM-Mac.dmg) (her `mai
 Akış: Eklenti → `chrome.runtime.connectNative` → `IDMMacHost` (stdin/stdout) → `~/Library/Application Support/IDMMac/ipc.sock` → uygulama.
 
 Yerelde derleme (Xcode komut satırı araçları gerekir): `./Packaging/package.sh`
+
+## Lisans
+
+© 2026 savascitaner. Tüm hakları saklıdır, bkz. [LICENSE](LICENSE). Pakete eklenen açık kaynak bileşenler için [THIRD_PARTY.md](THIRD_PARTY.md).

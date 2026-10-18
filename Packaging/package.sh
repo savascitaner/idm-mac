@@ -16,8 +16,10 @@ echo "==> App bundle"
 rm -rf dist
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/bin"
 cp "$BIN/IDMMac" "$BIN/IDMMacHost" "$APP/Contents/MacOS/"
-sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" Packaging/Info.plist > "$APP/Contents/Info.plist"
+OWNER="${OWNER:-savascitaner}"
+sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" -e "s/__OWNER__/$OWNER/" Packaging/Info.plist > "$APP/Contents/Info.plist"
 cp -R Extension "$APP/Contents/Resources/ChromeExtension"
+cp THIRD_PARTY.md "$APP/Contents/Resources/THIRD_PARTY.md"
 
 echo "==> Icon"
 ICONSET="$TMP/AppIcon.iconset"

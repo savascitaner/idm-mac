@@ -29,6 +29,9 @@ struct IDMMacApp: App {
         }
         .defaultSize(width: 1040, height: 640)
         .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("IDM Mac Hakkında") { AboutPanel.show() }
+            }
             CommandGroup(replacing: .newItem) {
                 AddURLCommand()
             }
@@ -79,6 +82,24 @@ struct MenuBarContent: View {
         Button("Tümünü duraklat") { model.pauseAll() }.disabled(model.activeCount == 0)
         Button("Tümünü sürdür") { model.resumeAll() }
         Divider()
+        Button("IDM Mac Hakkında") { AboutPanel.show() }
         Button("Çık") { NSApp.terminate(nil) }.keyboardShortcut("q")
+    }
+}
+
+enum AboutPanel {
+    static let owner = "savascitaner"
+
+    static func show() {
+        let credits = NSMutableAttributedString()
+        let body: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor.labelColor]
+        let small: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 10), .foregroundColor: NSColor.secondaryLabelColor]
+        credits.append(NSAttributedString(string: "Bu uygulama \(owner) tarafından, kendi kullanımı için yaptırılmıştır ve \(owner)'a aittir. İzinsiz dağıtılamaz.\n\n", attributes: body))
+        credits.append(NSAttributedString(string: "İçindeki açık kaynak bileşenler: yt-dlp (Unlicense), FFmpeg (GPL/LGPL), Deno (MIT). Ayrıntılar uygulama paketindeki THIRD_PARTY.md dosyasında.", attributes: small))
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .applicationName: "IDM Mac",
+            .credits: credits,
+        ])
     }
 }
