@@ -26,6 +26,9 @@ jobs:
           BUILD: ${{ github.run_number }}
         run: ./Packaging/package.sh
 
+      - name: Smoke test (launch app, download through the native host)
+        run: python3 Packaging/smoke_test.py "dist/IDM Mac.app"
+
       - uses: actions/upload-artifact@v4
         with:
           name: IDM-Mac
