@@ -5,14 +5,14 @@
     <key>CFBundleDevelopmentRegion</key><string>tr</string>
     <key>CFBundleExecutable</key><string>IDMMacSafari</string>
     <key>CFBundleIdentifier</key><string>com.savascitaner.idmmac.Extension</string>
-    <key>CFBundleName</key><string>IDM Mac</string>
-    <key>CFBundleDisplayName</key><string>IDM Mac</string>
+    <key>CFBundleName</key><string>MDM</string>
+    <key>CFBundleDisplayName</key><string>MDM</string>
     <key>CFBundlePackageType</key><string>XPC!</string>
     <key>CFBundleShortVersionString</key><string>__VERSION__</string>
     <key>CFBundleVersion</key><string>__BUILD__</string>
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>NSHumanReadableCopyright</key><string>© 2026 __OWNER__. Tüm hakları saklıdır.</string>
-    <key>NSHumanReadableDescription</key><string>İndirmeleri ve videoları IDM Mac uygulamasına gönderir.</string>
+    <key>NSHumanReadableDescription</key><string>İndirmeleri ve videoları MDM uygulamasına gönderir.</string>
     <key>IDMBridgeToken</key><string>__TOKEN__</string>
     <key>NSExtension</key>
     <dict>

@@ -268,7 +268,7 @@ struct ExtensionHelpSheet: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("1. Safari > Ayarlar > **Gelişmiş** sekmesinde **Web geliştiricileri için özellikleri göster** kutusunu işaretle.")
                 Text("2. Safari > Ayarlar > **Geliştirici** sekmesinde **İmzasız uzantılara izin ver** kutusunu işaretle.")
-                Text("3. Safari > Ayarlar > **Uzantılar**'da **IDM Mac**'i işaretle, sonra **Tüm web sitelerinde her zaman izin ver**'i seç.")
+                Text("3. Safari > Ayarlar > **Uzantılar**'da **MDM**'yi işaretle, sonra **Tüm web sitelerinde her zaman izin ver**'i seç.")
                 Text("Uygulama Apple imzalı olmadığı için 2. adım Safari her kapanınca sıfırlanır; Safari'yi her açtığında yeniden işaretle.")
                     .font(.caption).foregroundStyle(.secondary)
                 Text("Safari'de linke tıklayınca yakalama sadece .dmg, .zip, .mp4 gibi uzantısı belli linklerde çalışır. Video butonu ve sağ tık menüsü Chrome'daki gibi çalışır.")

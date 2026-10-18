@@ -4,7 +4,20 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Self.clearQuarantine()
         AppModel.shared.boot()
+    }
+
+    /// Once the user has allowed the app ("Yine de Aç"), drop the quarantine flag from the whole bundle
+    /// so the bundled tools and the Safari extension run without further prompts and no Terminal step is needed.
+    static func clearQuarantine() {
+        let path = Bundle.main.bundlePath
+        guard getxattr(path, "com.apple.quarantine", nil, 0, 0, 0) >= 0 else { return }
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
+        p.arguments = ["-dr", "com.apple.quarantine", path]
+        try? p.run()
+        p.waitUntilExit()
     }
 
     /// idmmac:// links come from the Safari extension.
@@ -29,7 +42,7 @@ struct IDMMacApp: App {
     @StateObject private var model = AppModel.shared
 
     var body: some Scene {
-        Window("IDM Mac", id: "main") {
+        Window("MDM - Mac Download Manager", id: "main") {
             ContentView()
                 .environmentObject(model)
                 .frame(minWidth: 1000, minHeight: 560)
@@ -37,7 +50,7 @@ struct IDMMacApp: App {
         .defaultSize(width: 1280, height: 760)
         .commands {
             CommandGroup(replacing: .appInfo) {
-                Button("IDM Mac Hakkında") { AboutPanel.show() }
+                Button("MDM Hakkında") { AboutPanel.show() }
             }
             CommandGroup(replacing: .newItem) {
                 AddURLCommand()
@@ -81,7 +94,7 @@ enum AboutPanel {
         credits.append(NSAttributedString(string: "İçindeki açık kaynak bileşenler: yt-dlp (Unlicense), FFmpeg (GPL/LGPL), Deno (MIT). Ayrıntılar uygulama paketindeki THIRD_PARTY.md dosyasında.", attributes: small))
         NSApp.activate(ignoringOtherApps: true)
         NSApp.orderFrontStandardAboutPanel(options: [
-            .applicationName: "IDM Mac",
+            .applicationName: "MDM - Mac Download Manager",
             .credits: credits,
         ])
     }

@@ -85,7 +85,7 @@ enum FileMeta {
     /// Marks a downloaded file the way browsers do, so Gatekeeper still checks downloaded apps
     /// and Finder shows where the file came from.
     static func markDownloaded(_ file: URL, from source: String, referrer: String?) {
-        let agent = "IDM Mac"
+        let agent = "MDM"
         let uuid = UUID().uuidString
         let q = String(format: "0081;%08x;%@;%@", Int(Date().timeIntervalSince1970), agent, uuid)
         setXattr(file, "com.apple.quarantine", Data(q.utf8))

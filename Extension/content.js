@@ -141,7 +141,7 @@
         busy = false;
         if (res && res.ok) {
           btn.className = "done";
-          label.textContent = "IDM Mac'e gönderildi";
+          label.textContent = "MDM'ye gönderildi";
         } else {
           btn.className = "err";
           label.textContent = "Uygulama açılamadı";

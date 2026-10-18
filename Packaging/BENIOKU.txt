@@ -1,27 +1,26 @@
-IDM Mac kurulumu
+MDM - Mac Download Manager kurulumu
 
-1) "IDM Mac" simgesini Applications klasörüne sürükle.
+1) "MDM" simgesini Applications klasörüne sürükle.
+   Eski "IDM Mac" uygulaması Applications'ta duruyorsa onu çöp kutusuna at
+   (indirme listen ve ayarların korunur).
 
-2) Uygulama Apple tarafından imzalanmadığı için ilk açılışta macOS uyarı verir.
-   Terminal'de şu komutu bir kez çalıştır:
+2) MDM'yi aç. Uygulama Apple tarafından imzalanmadığı için macOS bir uyarı gösterir;
+   "Bitti" ya da "Tamam"a bas. Sonra:
+   Sistem Ayarları > Gizlilik ve Güvenlik > en altta "MDM" için "Yine de Aç" düğmesine bas
+   ve parolanı gir. Bu sadece ilk açılışta bir kez gerekir; gerisini uygulama kendisi halleder.
 
-     xattr -dr com.apple.quarantine "/Applications/IDM Mac.app"
-
-   (Ya da: uygulamayı bir kez açmayı dene, sonra Sistem Ayarları > Gizlilik ve Güvenlik >
-   "Yine de Aç" düğmesine bas.)
-
-3) IDM Mac'i aç. Araç çubuğundaki yapboz simgesine ("Chrome eklentisi") bas ve
-   oradaki 4 adımı izle: chrome://extensions > Geliştirici modu > Paketlenmemiş öğe yükle >
-   gösterilen klasörü seç.
+3) Araç çubuğundaki yapboz simgesine ("Tarayıcı eklentisi") bas.
+   Chrome sekmesindeki adımları izle: chrome://extensions > Geliştirici modu >
+   Paketlenmemiş öğe yükle > gösterilen klasörü seç.
 
 4) Chrome'u kapatıp yeniden aç. Artık:
-   - İndirme linklerine tıklayınca indirme otomatik olarak IDM Mac'e geçer.
+   - İndirme linklerine tıklayınca indirme otomatik olarak MDM'ye geçer.
    - YouTube, Vimeo, X vb. sitelerde videonun üstüne gelince "Bu videoyu indir" butonu çıkar.
 
 5) Safari kullanıyorsan (isteğe bağlı):
    - Safari > Ayarlar > Gelişmiş > "Web geliştiricileri için özellikleri göster" kutusunu işaretle.
    - Safari > Ayarlar > Geliştirici > "İmzasız uzantılara izin ver" kutusunu işaretle (parola sorar).
-   - Safari > Ayarlar > Uzantılar > "IDM Mac" kutusunu işaretle ve tüm web sitelerine izin ver.
+   - Safari > Ayarlar > Uzantılar > "MDM" kutusunu işaretle ve tüm web sitelerine izin ver.
    Uygulama Apple imzalı olmadığı için "İmzasız uzantılara izin ver" ayarı Safari her
    kapanınca sıfırlanır; Safari'yi her açışında bu kutuyu yeniden işaretlemen gerekir.
    Safari'de linke tıklayınca yakalama sadece .dmg, .zip, .mp4 gibi uzantısı belli linklerde çalışır.

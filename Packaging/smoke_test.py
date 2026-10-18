@@ -15,7 +15,7 @@ import sys
 import time
 from pathlib import Path
 
-APP = Path(sys.argv[1] if len(sys.argv) > 1 else "dist/IDM Mac.app").resolve()
+APP = Path(sys.argv[1] if len(sys.argv) > 1 else "dist/MDM.app").resolve()
 HOST = APP / "Contents/MacOS/IDMMacHost"
 SUPPORT = Path.home() / "Library/Application Support/IDMMac"
 DB = SUPPORT / "downloads.json"
@@ -204,11 +204,11 @@ def main():
 
     # Screenshot of the main window with sample downloads, for visual review (best effort).
     try:
-        subprocess.run(["osascript", "-e", 'quit app "IDM Mac"'], timeout=30)
+        subprocess.run(["osascript", "-e", 'quit app "MDM"'], timeout=30)
         time.sleep(3)
         subprocess.run(["open", "-n", str(APP), "--args", "--demo"], timeout=30)
         time.sleep(10)
-        subprocess.run(["osascript", "-e", 'tell application "IDM Mac" to activate'], timeout=20)
+        subprocess.run(["osascript", "-e", 'tell application "MDM" to activate'], timeout=20)
         time.sleep(3)
         subprocess.run(["screencapture", "-x", "dist/screenshot.png"], timeout=30)
     except Exception as e:  # noqa: BLE001

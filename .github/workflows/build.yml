@@ -33,12 +33,12 @@ jobs:
         run: ./Packaging/package.sh
 
       - name: Smoke test (launch app, download through the native host)
-        run: python3 Packaging/smoke_test.py "dist/IDM Mac.app"
+        run: python3 Packaging/smoke_test.py "dist/MDM.app"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: IDM-Mac
-          path: dist/IDM-Mac.dmg
+          name: MDM
+          path: dist/MDM.dmg
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -53,7 +53,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --yes --cleanup-tag || true
-          FILES="dist/IDM-Mac.dmg"
+          FILES="dist/MDM.dmg"
           [ -f dist/screenshot.png ] && FILES="$FILES dist/screenshot.png"
           gh release create latest $FILES --prerelease --target "$GITHUB_SHA" \
             --title "Son sürüm (${GITHUB_SHA::7})" \
@@ -63,4 +63,4 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/IDM-Mac.dmg --title "IDM Mac $GITHUB_REF_NAME" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" dist/MDM.dmg --title "MDM $GITHUB_REF_NAME" --generate-notes

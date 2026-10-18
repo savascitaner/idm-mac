@@ -13,7 +13,7 @@ let socketPath: String = {
     return base.appendingPathComponent("IDMMac/ipc.sock").path
 }()
 
-/// The .app bundle this host lives in (…/IDM Mac.app/Contents/MacOS/IDMMacHost).
+/// The .app bundle this host lives in (…/MDM.app/Contents/MacOS/IDMMacHost).
 let appBundlePath: String = {
     let exe = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
     return exe.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().path

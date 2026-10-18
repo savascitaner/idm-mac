@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="0.35" y2="1">
+    <stop offset="0" stop-color="#38BDF8"/>
+    <stop offset="0.45" stop-color="#2563EB"/>
+    <stop offset="1" stop-color="#4C1D95"/>
+  </linearGradient>
+  <radialGradient id="glow" cx="0.3" cy="0.12" r="0.75">
+    <stop offset="0" stop-color="#fff" stop-opacity="0.45"/>
+    <stop offset="0.55" stop-color="#fff" stop-opacity="0.05"/>
+    <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+  </radialGradient>
+  <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#FFFFFF"/>
+    <stop offset="1" stop-color="#A5F3FC"/>
+  </linearGradient>
+  <linearGradient id="arrow" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#FFFFFF"/>
+    <stop offset="1" stop-color="#E0F2FE"/>
+  </linearGradient>
+  <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+    <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#0b1440" flood-opacity="0.38"/>
+  </filter>
+  <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+    <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#1e1b4b" flood-opacity="0.45"/>
+  </filter>
+  <clipPath id="sq"><rect x="100" y="100" width="824" height="824" rx="186"/></clipPath>
+</defs>
+<g filter="url(#shadow)">
+  <rect x="100" y="100" width="824" height="824" rx="186" fill="url(#bg)"/>
+</g>
+<g clip-path="url(#sq)">
+  <rect x="100" y="100" width="824" height="824" fill="url(#glow)"/>
+  <!-- speed streaks -->
+  <g stroke="#fff" stroke-linecap="round" opacity="0.10" stroke-width="18">
+    <line x1="150" y1="300" x2="300" y2="300"/>
+    <line x1="130" y1="360" x2="250" y2="360"/>
+    <line x1="780" y1="620" x2="900" y2="620"/>
+    <line x1="740" y1="680" x2="890" y2="680"/>
+  </g>
+</g>
+<rect x="101.5" y="101.5" width="821" height="821" rx="185" fill="none" stroke="#fff" stroke-opacity="0.22" stroke-width="3"/>
+<g transform="translate(512 470) rotate(-90)" fill="none" stroke-width="52" stroke-linecap="butt">
+  <circle r="228" stroke="#fff" stroke-opacity="0.22" stroke-dasharray="161.07 18" stroke-dashoffset="-9.0"/>
+  <circle r="228" stroke="url(#ring)" stroke-dasharray="161.07 18 161.07 18 161.07 18 161.07 18 161.07 18 161.07 1432.57" stroke-dashoffset="-9.0" filter="url(#soft)"/>
+</g>
+<g filter="url(#soft)" fill="url(#arrow)">
+  <rect x="466" y="318" width="92" height="190" rx="22"/>
+  <path d="M368 478 Q352 478 362 492 L494 626 Q512 644 530 626 L662 492 Q672 478 656 478 Z"/>
+</g>
+<text x="512" y="842" text-anchor="middle" font-family="Inter Display" font-weight="900" font-size="118" letter-spacing="10" fill="#fff" filter="url(#soft)">MDM</text>
+</svg>

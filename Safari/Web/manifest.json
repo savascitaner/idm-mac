@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "IDM Mac",
+  "name": "MDM - Mac Download Manager",
   "version": "0.2.0",
-  "description": "İndirmeleri ve videoları IDM Mac uygulamasına gönderir.",
+  "description": "İndirmeleri ve videoları MDM uygulamasına gönderir.",
   "permissions": [
     "nativeMessaging",
     "cookies",
@@ -42,7 +42,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "IDM Mac",
+    "default_title": "MDM",
     "default_icon": {
       "16": "icons/16.png",
       "32": "icons/32.png"

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Builds "IDM Mac.app" (arm64) with yt-dlp and ffmpeg inside, ad-hoc signs it and makes dist/IDM-Mac.dmg.
+# Builds "MDM.app" (arm64) with yt-dlp and ffmpeg inside, ad-hoc signs it and makes dist/MDM.dmg.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 VERSION="${VERSION:-0.1.0}"
 BUILD="${BUILD:-1}"
-APP="dist/IDM Mac.app"
+APP="dist/MDM.app"
 TMP="$(mktemp -d)"
 
 echo "==> Swift build"
@@ -88,5 +88,5 @@ mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
 cp Packaging/BENIOKU.txt "$STAGE/BENİ OKU.txt"
-hdiutil create -volname "IDM Mac" -srcfolder "$STAGE" -ov -format UDZO "dist/IDM-Mac.dmg"
-echo "==> dist/IDM-Mac.dmg"
+hdiutil create -volname "MDM" -srcfolder "$STAGE" -ov -format UDZO "dist/MDM.dmg"
+echo "==> dist/MDM.dmg"

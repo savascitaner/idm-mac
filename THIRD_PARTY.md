@@ -1,6 +1,6 @@
 # Üçüncü taraf bileşenler
 
-IDM Mac uygulama paketi aşağıdaki açık kaynak programları içerir. Bunlar ayrı programlar olarak
+MDM uygulama paketi aşağıdaki açık kaynak programları içerir. Bunlar ayrı programlar olarak
 çalıştırılır ve kendi lisanslarına tabidir.
 
 | Bileşen | Lisans | Kaynak |

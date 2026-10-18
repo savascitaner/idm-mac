@@ -386,7 +386,7 @@ struct MenuBarPanel: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 22, height: 22)
-                Text("IDM Mac").font(.headline)
+                Text("MDM").font(.headline)
                 Spacer()
                 Text(model.activeCount > 0 ? Format.speed(model.totalSpeed) : "Hazır")
                     .font(.callout.bold().monospacedDigit())

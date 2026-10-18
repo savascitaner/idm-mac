@@ -6,8 +6,8 @@
     <key>CFBundleExecutable</key><string>IDMMac</string>
     <key>CFBundleIdentifier</key><string>com.savascitaner.idmmac</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
-    <key>CFBundleName</key><string>IDM Mac</string>
-    <key>CFBundleDisplayName</key><string>IDM Mac</string>
+    <key>CFBundleName</key><string>MDM</string>
+    <key>CFBundleDisplayName</key><string>MDM</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>__VERSION__</string>
     <key>CFBundleVersion</key><string>__BUILD__</string>

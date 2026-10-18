@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "IDM Mac Entegrasyonu",
+  "name": "MDM - Mac Download Manager",
   "version": "0.2.0",
-  "description": "İndirmeleri ve videoları IDM Mac uygulamasına gönderir.",
+  "description": "İndirmeleri ve videoları MDM uygulamasına gönderir.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAme6Xn/jAuuCiYnhF9y3n+S5KH04T0f2+Tx50c3EeL0TomoadpetxG/AaFO3zUymT+KZ6QWQ8sDOFrO5SBK73wMCEmLI7vS0xJG+fd15gfb/++SmM/AWIBSRLEnzUm5wA0C8F0TwyYF7yqhfxixprRmnJy5rji15mPfvc1/ANU080zkfbWTDs4dMdfUe6sbEIkR2VY8YsA2djTdjFvi0PaMYsKLfd5H7ajUq8rRr7MXSfZBDRYtpRrw66/RF5Xd95o/qTAjozB+gQfTn6qJcmvxutnarcZi0m0CaLDDBs6yz6b5+6RUKD1aSkHa4JDMxOnmQuafzKxmrW7XXMNLO3VQIDAQAB",
   "minimum_chrome_version": "116",
   "permissions": ["downloads", "nativeMessaging", "cookies", "contextMenus", "storage", "webRequest"],
@@ -18,7 +18,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "IDM Mac",
+    "default_title": "MDM",
     "default_icon": { "16": "icons/16.png", "32": "icons/32.png" }
   },
   "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" }

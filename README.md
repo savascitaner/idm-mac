@@ -1,6 +1,6 @@
-# IDM Mac
+# MDM - Mac Download Manager
 
-Apple Silicon Mac'ler için IDM (Internet Download Manager) benzeri indirme yöneticisi ve Chrome eklentisi.
+Apple Silicon Mac'ler için IDM (Internet Download Manager) benzeri indirme yöneticisi; Chrome ve Safari eklentisiyle.
 
 - **Otomatik yakalama:** Chrome'da bir indirme linkine tıklayınca indirme uygulamaya geçer ve çok bağlantıyla (varsayılan 8) iner. Duraklat/sürdür desteklenir, uygulama kapansa da kaldığı yerden devam eder.
 - **"Bu videoyu indir" butonu:** YouTube, Vimeo, X, Instagram vb. sitelerde videonun üstüne gelince çıkar; kalite seçilir, indirme [yt-dlp](https://github.com/yt-dlp/yt-dlp) + ffmpeg ile yapılır. yt-dlp günde bir kez kendini günceller.
@@ -8,7 +8,7 @@ Apple Silicon Mac'ler için IDM (Internet Download Manager) benzeri indirme yön
 
 ## İndir
 
-Son sürüm: [IDM-Mac.dmg](../../releases/download/latest/IDM-Mac.dmg) (her `main` gönderiminde GitHub Actions üretir). Kurulum adımları DMG içindeki `BENİ OKU.txt` dosyasında.
+Son sürüm: [MDM.dmg](../../releases/download/latest/MDM.dmg) (her `main` gönderiminde GitHub Actions üretir). Kurulum adımları DMG içindeki `BENİ OKU.txt` dosyasında.
 
 ## Yapı
 

@@ -125,7 +125,7 @@ enum HostInstaller {
               fm.isExecutableFile(atPath: hostExe.path) else { return [] }
         let manifest: [String: Any] = [
             "name": hostName,
-            "description": "IDM Mac native messaging host",
+            "description": "MDM native messaging host",
             "path": hostExe.path,
             "type": "stdio",
             "allowed_origins": ["chrome-extension://\(extensionID)/"],

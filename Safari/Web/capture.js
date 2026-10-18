@@ -1,4 +1,4 @@
-// Safari has no downloads API, so clicks on links to downloadable files are caught here and sent to IDM Mac.
+// Safari has no downloads API, so clicks on links to downloadable files are caught here and sent to MDM.
 // If the app can't be reached the link is opened normally and Safari downloads it.
 (() => {
   if (window.__idmMacCapture) return;
