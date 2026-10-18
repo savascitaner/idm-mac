@@ -48,6 +48,16 @@ enum Tools {
         return candidates.first { fm.isExecutableFile(atPath: $0) }.map { URL(fileURLWithPath: $0) }
     }
 
+    /// JavaScript runtime yt-dlp needs to solve YouTube's signature challenges. Without it
+    /// YouTube only exposes storyboard images and every download fails with "format not available".
+    static var deno: URL? {
+        let fm = FileManager.default
+        var candidates: [String] = []
+        if let b = Paths.bundledBin?.appendingPathComponent("deno").path { candidates.append(b) }
+        candidates += ["/opt/homebrew/bin/deno", "/usr/local/bin/deno", NSHomeDirectory() + "/.deno/bin/deno"]
+        return candidates.first { fm.isExecutableFile(atPath: $0) }.map { URL(fileURLWithPath: $0) }
+    }
+
     /// Runs `yt-dlp -U` at most once a day, because sites like YouTube break old versions quickly.
     static func updateYtdlpIfNeeded(force: Bool = false, completion: ((String) -> Void)? = nil) {
         let key = "lastYtdlpUpdate"

@@ -44,6 +44,7 @@ struct VideoPickerView: View {
     @State private var error: String?
     @State private var selection: VideoOption?
     @State private var loading = true
+    @State private var usedCookies = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -100,7 +101,7 @@ struct VideoPickerView: View {
                 if let info {
                     Button("İndir") {
                         AppModel.shared.addVideo(info: info, option: selection ?? info.options[0],
-                                                 headers: request.headers, cookies: request.cookies)
+                                                 headers: request.headers, cookies: usedCookies ? request.cookies : [])
                         dismiss()
                     }
                     .keyboardShortcut(.defaultAction)
@@ -112,33 +113,40 @@ struct VideoPickerView: View {
         .onAppear(perform: load)
     }
 
+    /// Tries the page without cookies first (yt-dlp advises against cookies unless a site needs them,
+    /// and sending them can make YouTube rotate the browser session), then with the browser cookies,
+    /// then the media URL the extension saw.
     private func load() {
         let cookieFile = YtDlp.cookieFile(for: request.id, cookies: request.cookies)
-        YtDlp.probe(url: request.pageURL, cookieFile: cookieFile, headers: request.headers) { result in
+        var attempts: [(url: String, cookies: URL?)] = [(request.pageURL, nil)]
+        if let c = cookieFile { attempts.append((request.pageURL, c)) }
+        if let m = request.mediaURL, !m.isEmpty, !m.hasPrefix("blob:"), m != request.pageURL {
+            attempts.append((m, cookieFile))
+        }
+        run(attempts, firstError: nil) { result in
+            if let f = cookieFile { try? FileManager.default.removeItem(at: f) }
             switch result {
-            case .success(let i):
-                cleanup(cookieFile)
+            case .success(let (i, withCookies)):
                 info = i
+                usedCookies = withCookies
                 selection = i.options.first
-                loading = false
             case .failure(let e):
-                // The page itself may not be supported; try the media URL the extension saw.
-                if let m = request.mediaURL, !m.isEmpty, !m.hasPrefix("blob:"), m != request.pageURL {
-                    YtDlp.probe(url: m, cookieFile: cookieFile, headers: request.headers) { r2 in
-                        cleanup(cookieFile)
-                        if case .success(let i) = r2 {
-                            info = i
-                            selection = i.options.first
-                        } else {
-                            error = e.localizedDescription
-                        }
-                        loading = false
-                    }
-                } else {
-                    cleanup(cookieFile)
-                    error = e.localizedDescription
-                    loading = false
-                }
+                error = e.localizedDescription
+            }
+            loading = false
+        }
+    }
+
+    private func run(_ attempts: [(url: String, cookies: URL?)], firstError: Error?,
+                     done: @escaping (Result<(VideoInfo, Bool), Error>) -> Void) {
+        guard let a = attempts.first else {
+            done(.failure(firstError ?? YtDlp.Failure("Video bilgisi alınamadı")))
+            return
+        }
+        YtDlp.probe(url: a.url, cookieFile: a.cookies, headers: request.headers) { r in
+            switch r {
+            case .success(let i): done(.success((i, a.cookies != nil)))
+            case .failure(let e): run(Array(attempts.dropFirst()), firstError: firstError ?? e, done: done)
             }
         }
     }

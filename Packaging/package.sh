@@ -36,6 +36,13 @@ for tool in ffmpeg ffprobe; do
   fi
 done
 
+echo "==> deno (JavaScript runtime yt-dlp needs for YouTube)"
+curl -fsSL --retry 3 -o "$TMP/deno.zip" \
+  https://github.com/denoland/deno/releases/latest/download/deno-aarch64-apple-darwin.zip
+unzip -oq "$TMP/deno.zip" -d "$TMP/deno"
+cp "$TMP/deno/deno" "$APP/Contents/Resources/bin/deno"
+chmod +x "$APP/Contents/Resources/bin/deno"
+
 for f in "$APP"/Contents/Resources/bin/*; do
   echo "    $(basename "$f"): $(lipo -archs "$f" 2>/dev/null || echo '?')"
 done

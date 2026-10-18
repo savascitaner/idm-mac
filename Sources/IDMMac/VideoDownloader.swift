@@ -40,6 +40,7 @@ enum YtDlp {
         if let ua = headers["User-Agent"], !ua.isEmpty { a += ["--user-agent", ua] }
         if let r = headers["Referer"], !r.isEmpty { a += ["--referer", r] }
         if let ff = Tools.ffmpeg { a += ["--ffmpeg-location", ff.path] }
+        if let js = Tools.deno { a += ["--js-runtimes", "deno:" + js.path] }
         return a
     }
 
@@ -61,8 +62,14 @@ enum YtDlp {
                 DispatchQueue.main.async { completion(.failure(error)) }
                 return
             }
+            var errData = Data()
+            let errDone = DispatchSemaphore(value: 0)
+            DispatchQueue.global().async {
+                errData = err.fileHandleForReading.readDataToEndOfFile()
+                errDone.signal()
+            }
             let data = out.fileHandleForReading.readDataToEndOfFile()
-            let errData = err.fileHandleForReading.readDataToEndOfFile()
+            errDone.wait()
             p.waitUntilExit()
             let result: Result<VideoInfo, Error>
             if p.terminationStatus == 0, let info = parse(data, fallbackURL: url) {

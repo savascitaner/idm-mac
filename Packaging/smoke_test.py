@@ -126,6 +126,15 @@ def main():
     if out.returncode != 0:
         fail("ffmpeg does not run")
 
+    deno = APP / "Contents/Resources/bin/deno"
+    out = subprocess.run([str(ytdlp), "-v", "--simulate", "--no-playlist", "--js-runtimes", f"deno:{deno}",
+                          "https://www.youtube.com/watch?v=jNQXAC9IVRw"], capture_output=True, text=True, timeout=180)
+    runtimes = next((l for l in out.stderr.splitlines() if "JS runtimes" in l), "")
+    print(runtimes)
+    print("youtube probe exit:", out.returncode, out.stderr.strip().splitlines()[-1] if out.stderr.strip() else "")
+    if not runtimes or "none" in runtimes:
+        fail("yt-dlp does not see the bundled deno runtime")
+
     print("SMOKE OK")
 
 
