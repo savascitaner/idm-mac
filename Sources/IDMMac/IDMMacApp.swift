@@ -88,13 +88,13 @@ struct MenuBarContent: View {
 }
 
 enum AboutPanel {
-    static let owner = "savascitaner"
+    static let owner = "Enes Savaşçı"
 
     static func show() {
         let credits = NSMutableAttributedString()
         let body: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor.labelColor]
         let small: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 10), .foregroundColor: NSColor.secondaryLabelColor]
-        credits.append(NSAttributedString(string: "Bu uygulama \(owner) tarafından, kendi kullanımı için yaptırılmıştır ve \(owner)'a aittir. İzinsiz dağıtılamaz.\n\n", attributes: body))
+        credits.append(NSAttributedString(string: "Bu uygulama \(owner) tarafından, kendi kullanımı için yaptırılmıştır. Tüm hakları \(owner)'ya aittir; izinsiz dağıtılamaz.\n\n", attributes: body))
         credits.append(NSAttributedString(string: "İçindeki açık kaynak bileşenler: yt-dlp (Unlicense), FFmpeg (GPL/LGPL), Deno (MIT). Ayrıntılar uygulama paketindeki THIRD_PARTY.md dosyasında.", attributes: small))
         NSApp.activate(ignoringOtherApps: true)
         NSApp.orderFrontStandardAboutPanel(options: [

@@ -25,4 +25,4 @@ Yerelde derleme (Xcode komut satırı araçları gerekir): `./Packaging/package.
 
 ## Lisans
 
-© 2026 savascitaner. Tüm hakları saklıdır, bkz. [LICENSE](LICENSE). Pakete eklenen açık kaynak bileşenler için [THIRD_PARTY.md](THIRD_PARTY.md).
+© 2026 Enes Savaşçı. Tüm hakları saklıdır, bkz. [LICENSE](LICENSE). Pakete eklenen açık kaynak bileşenler için [THIRD_PARTY.md](THIRD_PARTY.md).
