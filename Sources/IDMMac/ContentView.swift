@@ -43,10 +43,20 @@ struct ContentView: View {
                             List(selection: $selection) {
                                 ForEach(filtered) { d in
                                     DownloadRow(record: d).tag(d.id)
-                                        .contextMenu { rowMenu(d) }
                                 }
                             }
                             .listStyle(.inset(alternatesRowBackgrounds: true))
+                            // A tap gesture on the rows would swallow the clicks that select them,
+                            // so double-click and the context menu go through the list itself.
+                            .contextMenu(forSelectionType: UUID.self) { ids in
+                                if ids.count == 1, let id = ids.first, let d = model.downloads.first(where: { $0.id == id }) {
+                                    rowMenu(d)
+                                }
+                            } primaryAction: { ids in
+                                for id in ids {
+                                    if let d = model.downloads.first(where: { $0.id == id }), d.state == .completed { model.open(d) }
+                                }
+                            }
                             .animation(.default, value: filtered.map(\.id))
                         }
                     }
@@ -142,7 +152,6 @@ struct DownloadRow: View {
             buttons
         }
         .padding(.vertical, 4)
-        .onTapGesture(count: 2) { if record.state == .completed { model.open(record) } }
     }
 
     @ViewBuilder
