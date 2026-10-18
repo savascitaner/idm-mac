@@ -25,9 +25,9 @@ struct IDMMacApp: App {
         Window("IDM Mac", id: "main") {
             ContentView()
                 .environmentObject(model)
-                .frame(minWidth: 820, minHeight: 480)
+                .frame(minWidth: 1000, minHeight: 560)
         }
-        .defaultSize(width: 1040, height: 640)
+        .defaultSize(width: 1280, height: 760)
         .commands {
             CommandGroup(replacing: .appInfo) {
                 Button("IDM Mac Hakkında") { AboutPanel.show() }
@@ -38,10 +38,11 @@ struct IDMMacApp: App {
         }
 
         MenuBarExtra {
-            MenuBarContent().environmentObject(model)
+            MenuBarPanel().environmentObject(model)
         } label: {
             Image(systemName: model.activeCount > 0 ? "arrow.down.circle.fill" : "arrow.down.circle")
         }
+        .menuBarExtraStyle(.window)
 
         Settings {
             SettingsView().environmentObject(model)
@@ -60,31 +61,6 @@ struct AddURLCommand: View {
 
 extension Notification.Name {
     static let showAddURL = Notification.Name("IDMMacShowAddURL")
-}
-
-struct MenuBarContent: View {
-    @EnvironmentObject var model: AppModel
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        if model.activeCount > 0 {
-            Text("\(model.activeCount) indirme · \(Format.speed(model.totalSpeed))")
-            Divider()
-        }
-        Button("Pencereyi aç") {
-            NSApp.activate(ignoringOtherApps: true)
-            openWindow(id: "main")
-        }
-        Button("Panodaki adresi indir") {
-            if let s = NSPasteboard.general.string(forType: .string) { model.addFromUserInput(s) }
-        }
-        Divider()
-        Button("Tümünü duraklat") { model.pauseAll() }.disabled(model.activeCount == 0)
-        Button("Tümünü sürdür") { model.resumeAll() }
-        Divider()
-        Button("IDM Mac Hakkında") { AboutPanel.show() }
-        Button("Çık") { NSApp.terminate(nil) }.keyboardShortcut("q")
-    }
 }
 
 enum AboutPanel {

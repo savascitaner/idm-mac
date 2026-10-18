@@ -155,10 +155,14 @@ def main():
     if not runtimes or "none" in runtimes:
         fail("yt-dlp does not see the bundled deno runtime")
 
-    # Screenshot of the main window for visual review (best effort).
+    # Screenshot of the main window with sample downloads, for visual review (best effort).
     try:
+        subprocess.run(["osascript", "-e", 'quit app "IDM Mac"'], timeout=30)
+        time.sleep(3)
+        subprocess.run(["open", "-n", str(APP), "--args", "--demo"], timeout=30)
+        time.sleep(10)
         subprocess.run(["osascript", "-e", 'tell application "IDM Mac" to activate'], timeout=20)
-        time.sleep(2)
+        time.sleep(3)
         subprocess.run(["screencapture", "-x", "dist/screenshot.png"], timeout=30)
     except Exception as e:  # noqa: BLE001
         print("screenshot failed:", e)

@@ -10,6 +10,13 @@ final class AppModel: ObservableObject {
     @Published var downloads: [DownloadRecord] = []
     @Published var browsersLinked: [String] = []
     @Published var speedHistory: [Double] = Array(repeating: 0, count: 60)
+    /// Speed samples per download (one per second), for the detail panel.
+    @Published var speedSeries: [UUID: [Double]] = [:]
+    @Published var diskFree: Int64 = 0
+    @Published var diskTotal: Int64 = 0
+
+    /// `--demo` fills the window with sample downloads (used for the CI screenshot); nothing is saved.
+    let isDemo = CommandLine.arguments.contains("--demo")
 
     @AppStorage("downloadDirectory") var downloadDirectory: String = FileManager.default
         .urls(for: .downloadsDirectory, in: .userDomainMask)[0].path
@@ -25,9 +32,16 @@ final class AppModel: ObservableObject {
     private var saveTimer: Timer?
     private var speedTimer: Timer?
     private let videoWindows = VideoWindowController()
+    private var dockHost: NSHostingView<DockTileView>?
+    private var ticks = 0
 
     func boot() {
-        load()
+        if isDemo {
+            DemoData.fill(self)
+        } else {
+            load()
+        }
+        refreshDisk()
         server = IPCServer(path: Paths.socket) { msg, reply in
             let id = msg["id"] as? String ?? ""
             reply(["type": "accepted", "id": id])
@@ -43,13 +57,52 @@ final class AppModel: ObservableObject {
             Task { @MainActor in AppModel.shared.save() }
         }
         speedTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-            Task { @MainActor in
-                let m = AppModel.shared
-                m.speedHistory.append(m.totalSpeed)
-                if m.speedHistory.count > 60 { m.speedHistory.removeFirst(m.speedHistory.count - 60) }
-            }
+            Task { @MainActor in AppModel.shared.tick() }
         }
         pump()
+    }
+
+    /// Runs once a second: speed graphs, Dock progress, disk space.
+    private func tick() {
+        if isDemo { DemoData.advance(self) }
+        speedHistory.append(totalSpeed)
+        if speedHistory.count > 60 { speedHistory.removeFirst(speedHistory.count - 60) }
+        for d in downloads where d.state == .downloading {
+            var s = speedSeries[d.id] ?? []
+            s.append(d.speed)
+            if s.count > 120 { s.removeFirst(s.count - 120) }
+            speedSeries[d.id] = s
+        }
+        updateDock()
+        ticks += 1
+        if ticks % 10 == 0 { refreshDisk() }
+    }
+
+    func refreshDisk() {
+        let keys: Set<URLResourceKey> = [.volumeAvailableCapacityForImportantUsageKey, .volumeTotalCapacityKey]
+        guard let v = try? URL(fileURLWithPath: downloadDirectory).resourceValues(forKeys: keys) else { return }
+        diskFree = v.volumeAvailableCapacityForImportantUsage ?? 0
+        diskTotal = Int64(v.volumeTotalCapacity ?? 0)
+    }
+
+    /// Draws a progress bar over the Dock icon while something is downloading.
+    private func updateDock() {
+        let tile = NSApp.dockTile
+        if activeCount > 0, let p = overallProgress {
+            if let host = dockHost {
+                host.rootView = DockTileView(progress: p)
+            } else {
+                let host = NSHostingView(rootView: DockTileView(progress: p))
+                host.frame = NSRect(origin: .zero, size: tile.size)
+                tile.contentView = host
+                dockHost = host
+            }
+            tile.display()
+        } else if dockHost != nil {
+            tile.contentView = nil
+            dockHost = nil
+            tile.display()
+        }
     }
 
     // MARK: Incoming messages from the browser
@@ -124,6 +177,7 @@ final class AppModel: ObservableObject {
         rec.videoFormat = option.format
         rec.videoSort = option.sort
         rec.audioOnly = option.audioOnly
+        rec.thumbnail = info.thumbnail
         downloads.insert(rec, at: 0)
         pump()
     }
@@ -278,6 +332,7 @@ final class AppModel: ObservableObject {
         if let t = rec.tempPath, rec.state != .completed { try? FileManager.default.removeItem(atPath: t) }
         if deleteFile, let f = rec.finalPath { try? FileManager.default.trashItem(at: URL(fileURLWithPath: f), resultingItemURL: nil) }
         downloads.remove(at: i)
+        speedSeries[id] = nil
         save()
     }
 
@@ -308,6 +363,28 @@ final class AppModel: ObservableObject {
 
     var activeCount: Int { downloads.filter { $0.state == .downloading }.count }
     var totalSpeed: Double { downloads.filter { $0.state == .downloading }.reduce(0) { $0 + $1.speed } }
+    var queuedCount: Int { downloads.filter { $0.state == .queued }.count }
+    var pausedCount: Int { downloads.filter { $0.state == .paused }.count }
+
+    /// Combined progress of the running downloads whose size is known.
+    var overallProgress: Double? {
+        let act = downloads.filter { $0.state == .downloading && $0.totalBytes > 0 }
+        let total = act.reduce(Int64(0)) { $0 + $1.totalBytes }
+        guard total > 0 else { return nil }
+        return Double(act.reduce(Int64(0)) { $0 + $1.receivedBytes }) / Double(total)
+    }
+
+    var remainingBytes: Int64 {
+        downloads.filter { $0.state == .downloading && $0.totalBytes > 0 }
+            .reduce(Int64(0)) { $0 + max(0, $1.totalBytes - $1.receivedBytes) }
+    }
+
+    private var completedToday: [DownloadRecord] {
+        downloads.filter { $0.state == .completed && $0.completedAt.map(Calendar.current.isDateInToday) == true }
+    }
+
+    var todayCount: Int { completedToday.count }
+    var todayBytes: Int64 { completedToday.reduce(Int64(0)) { $0 + max($1.totalBytes, $1.receivedBytes) } }
 
     private func updateSleepAssertion() {
         let busy = downloads.contains { $0.state == .downloading }
@@ -349,6 +426,7 @@ final class AppModel: ObservableObject {
     }
 
     func save() {
+        guard !isDemo else { return }
         if let data = try? JSONEncoder().encode(downloads) {
             try? data.write(to: Paths.database, options: .atomic)
             try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: Paths.database.path)

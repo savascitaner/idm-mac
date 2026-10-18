@@ -1,4 +1,3 @@
-import Charts
 import SwiftUI
 
 /// IDM-style categories, chosen from the file extension.
@@ -65,6 +64,7 @@ enum SidebarItem: Hashable {
 struct SegmentBar: View {
     let record: DownloadRecord
     let tint: Color
+    var height: CGFloat = 8
 
     var body: some View {
         Canvas { ctx, size in
@@ -90,42 +90,8 @@ struct SegmentBar: View {
                 ctx.fill(Path(CGRect(x: 0, y: 0, width: size.width * record.progress, height: size.height)), with: .color(tint))
             }
         }
-        .frame(height: 8)
-        .clipShape(RoundedRectangle(cornerRadius: 3))
-    }
-}
-
-/// Total download speed over the last minute.
-struct SpeedChart: View {
-    let samples: [Double]
-
-    var body: some View {
-        let peak = max(samples.max() ?? 0, 1)
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text("Hız").font(.caption.bold()).foregroundStyle(.secondary)
-                Spacer()
-                Text(Format.speed(samples.last ?? 0).isEmpty ? "0 B/sn" : Format.speed(samples.last ?? 0))
-                    .font(.caption.monospacedDigit().bold())
-            }
-            Chart(Array(samples.enumerated()), id: \.offset) { i, v in
-                AreaMark(x: .value("t", i), y: .value("hız", v))
-                    .foregroundStyle(LinearGradient(colors: [.accentColor.opacity(0.5), .accentColor.opacity(0.05)],
-                                                    startPoint: .top, endPoint: .bottom))
-                    .interpolationMethod(.monotone)
-                LineMark(x: .value("t", i), y: .value("hız", v))
-                    .foregroundStyle(Color.accentColor)
-                    .interpolationMethod(.monotone)
-            }
-            .chartYScale(domain: 0...(peak * 1.15))
-            .chartXAxis(.hidden)
-            .chartYAxis(.hidden)
-            .frame(height: 44)
-            Text("En yüksek: " + (peak <= 1 ? "—" : Format.speed(peak)))
-                .font(.caption2).foregroundStyle(.secondary)
-        }
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.08)))
+        .frame(height: height)
+        .clipShape(RoundedRectangle(cornerRadius: min(3, height / 2)))
     }
 }
 
@@ -149,7 +115,7 @@ struct Sidebar: View {
                 }
             }
             .listStyle(.sidebar)
-            SpeedChart(samples: model.speedHistory).padding(10)
+            DiskCard().padding(10)
         }
     }
 

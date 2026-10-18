@@ -7,10 +7,20 @@ struct ContentView: View {
     @State private var showExtensionHelp = false
     @State private var selection = Set<UUID>()
     @State private var sidebar: SidebarItem? = .all
+    @State private var query = ""
+    @AppStorage("showInspector") private var showInspector = true
 
     private var filtered: [DownloadRecord] {
         let f = sidebar ?? .all
-        return model.downloads.filter { f.matches($0) }
+        let q = query.trimmingCharacters(in: .whitespaces)
+        return model.downloads.filter { f.matches($0) }.filter {
+            q.isEmpty || $0.fileName.localizedCaseInsensitiveContains(q) || $0.url.localizedCaseInsensitiveContains(q)
+        }
+    }
+
+    private var selectedRecord: DownloadRecord? {
+        guard selection.count == 1, let id = selection.first else { return nil }
+        return model.downloads.first { $0.id == id }
     }
 
     var body: some View {
@@ -19,19 +29,42 @@ struct ContentView: View {
                 .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
         } detail: {
             VStack(spacing: 0) {
-                if model.downloads.isEmpty {
-                    EmptyState(showExtensionHelp: $showExtensionHelp)
-                } else if filtered.isEmpty {
-                    Text("Bu bölümde indirme yok").foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    List(selection: $selection) {
-                        ForEach(filtered) { d in
-                            DownloadRow(record: d).tag(d.id)
-                                .contextMenu { rowMenu(d) }
+                DashboardHeader()
+                Divider()
+                HStack(spacing: 0) {
+                    Group {
+                        if model.downloads.isEmpty {
+                            EmptyState(showExtensionHelp: $showExtensionHelp)
+                        } else if filtered.isEmpty {
+                            Text(query.isEmpty ? "Bu bölümde indirme yok" : "Aramayla eşleşen indirme yok").foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        } else {
+                            List(selection: $selection) {
+                                ForEach(filtered) { d in
+                                    DownloadRow(record: d).tag(d.id)
+                                        .contextMenu { rowMenu(d) }
+                                }
+                            }
+                            .listStyle(.inset(alternatesRowBackgrounds: true))
+                            .animation(.default, value: filtered.map(\.id))
                         }
                     }
-                    .listStyle(.inset(alternatesRowBackgrounds: true))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    if showInspector {
+                        Divider()
+                        if let rec = selectedRecord {
+                            DownloadInspector(record: rec)
+                        } else {
+                            VStack(spacing: 8) {
+                                Image(systemName: "sidebar.right").font(.system(size: 30)).foregroundStyle(.tertiary)
+                                Text("Ayrıntıları görmek için bir indirme seç").font(.callout).foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.center)
+                            }
+                            .padding()
+                            .frame(width: 330)
+                            .frame(maxHeight: .infinity)
+                        }
+                    }
                 }
                 Divider()
                 HStack {
@@ -45,6 +78,7 @@ struct ContentView: View {
                 .padding(.horizontal, 12).padding(.vertical, 6)
             }
             .navigationTitle((sidebar ?? .all).title)
+            .searchable(text: $query, placement: .toolbar, prompt: "İndirmelerde ara")
             .toolbar {
                 ToolbarItemGroup {
                     Button { showAdd = true } label: { Label("Adres ekle", systemImage: "plus") }
@@ -52,6 +86,8 @@ struct ContentView: View {
                     Button { model.pauseAll() } label: { Label("Tümünü duraklat", systemImage: "pause.fill") }
                     Button { model.clearCompleted() } label: { Label("Bitenleri temizle", systemImage: "checkmark.circle") }
                     Button { showExtensionHelp = true } label: { Label("Chrome eklentisi", systemImage: "puzzlepiece.extension") }
+                    Button { showInspector.toggle() } label: { Label("Ayrıntı paneli", systemImage: "sidebar.right") }
+                        .help("Ayrıntı panelini aç/kapat")
                 }
             }
         }
@@ -59,6 +95,9 @@ struct ContentView: View {
         .sheet(isPresented: $showExtensionHelp) { ExtensionHelpSheet() }
         .onReceive(NotificationCenter.default.publisher(for: .showAddURL)) { _ in showAdd = true }
         .onDeleteCommand { selection.forEach { model.remove($0) } }
+        .onAppear {
+            if model.isDemo, let first = model.downloads.first { selection = [first.id] }
+        }
     }
 
     @ViewBuilder
@@ -85,13 +124,8 @@ struct DownloadRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            let cat = Category.of(record)
-            ZStack {
-                RoundedRectangle(cornerRadius: 8).fill(cat.color.gradient)
-                Image(systemName: cat.icon).font(.system(size: 16, weight: .semibold)).foregroundStyle(.white)
-            }
-            .frame(width: 36, height: 36)
-            .overlay(alignment: .bottomTrailing) { stateBadge }
+            FileThumb(record: record, size: 36)
+                .overlay(alignment: .bottomTrailing) { stateBadge }
             VStack(alignment: .leading, spacing: 3) {
                 Text(record.fileName.isEmpty ? record.url : record.fileName).lineLimit(1).truncationMode(.middle)
                 if record.state == .downloading || record.state == .paused {

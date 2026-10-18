@@ -58,6 +58,7 @@ struct DownloadRecord: Codable, Identifiable {
     var videoFormat: String?
     var videoSort: String?
     var audioOnly: Bool = false
+    var thumbnail: String?
     var createdAt = Date()
     var completedAt: Date?
 
