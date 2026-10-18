@@ -183,7 +183,7 @@ struct DiskCard: View {
             GeometryReader { g in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.secondary.opacity(0.15))
-                    Capsule().fill(tint.gradient).frame(width: g.size.width * used)
+                    Capsule().fill(tint.gradient).frame(width: g.size.width * CGFloat(used))
                 }
             }
             .frame(height: 6)
@@ -367,7 +367,7 @@ struct DockTileView: View {
                     Capsule().fill(Color.black.opacity(0.65))
                     Capsule()
                         .fill(LinearGradient(colors: [.green, .mint], startPoint: .leading, endPoint: .trailing))
-                        .frame(width: max(h * 0.1, (w * 0.8 - 6) * min(1, progress)))
+                        .frame(width: max(h * 0.1, (w * 0.8 - 6) * CGFloat(min(1, progress))))
                         .padding(3)
                 }
                 .frame(width: w * 0.8, height: h * 0.15)
