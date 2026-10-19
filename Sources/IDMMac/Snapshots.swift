@@ -30,7 +30,7 @@ enum Snapshots {
     private static func next(_ rest: ArraySlice<(String, AnyView, NSSize, Double)>, _ dir: String) {
         guard let (name, view, size, wait) = rest.first else {
             try? "ok".write(toFile: dir + "/done", atomically: true, encoding: .utf8)
-            return exit(0)
+            exit(0)
         }
         let w = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.titled, .closable], backing: .buffered, defer: false)
         w.contentView = NSHostingView(rootView: view)
