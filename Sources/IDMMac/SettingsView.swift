@@ -11,6 +11,16 @@ struct SettingsView: View {
     @AppStorage("maxParallel") private var maxParallel: Int = 3
     @AppStorage("notify") private var notify: Bool = true
     @AppStorage("safariTakeover") private var safariTakeover: Bool = true
+    @AppStorage("clipboardWatch") private var clipboardWatch: Bool = true
+    @AppStorage("speedLimitKB") private var speedLimitKB: Int = 0
+    @AppStorage("slowMode") private var slowMode: Bool = false
+    @AppStorage("slowModeKB") private var slowModeKB: Int = 256
+    @AppStorage("scheduleOn") private var scheduleOn: Bool = false
+    @AppStorage("scheduleStart") private var scheduleStart: Int = 2 * 3600
+    @AppStorage("scheduleStop") private var scheduleStop: Int = 8 * 3600
+    @AppStorage("afterAll") private var afterAll: String = Schedule.AfterAll.none.rawValue
+    @AppStorage("autoUpdateCheck") private var autoUpdateCheck: Bool = true
+    @ObservedObject private var updater = Updater.shared
     @State private var updateOutput = ""
 
     var body: some View {
@@ -25,6 +35,8 @@ struct SettingsView: View {
                 Stepper("Dosya başına bağlantı: \(connections)", value: $connections, in: 1...32)
                 Stepper("Aynı anda indirme: \(maxParallel)", value: $maxParallel, in: 1...10)
                 Toggle("Bitince bildirim göster", isOn: $notify)
+                Toggle("Kopyalanan indirme linklerini sor (pano izleme)", isOn: $clipboardWatch)
+                    .help("Bir dosya, video ya da magnet linki kopyaladığında MDM 'İndirilsin mi?' diye bildirim gösterir.")
                 Toggle("Safari'nin kendi başlattığı indirmeleri devral", isOn: $safariTakeover)
                     .help("Başka bir uygulamadan açılan linkler de dahil, Safari bir dosya indirmeye başlayınca MDM onu alır.")
                 HStack {
@@ -38,6 +50,52 @@ struct SettingsView: View {
                     Spacer()
                     Button("Kaydı göster") { NSWorkspace.shared.activateFileViewerSelecting([SafariWatcher.logFile]) }
                         .controlSize(.small)
+                }
+            }
+            Section("Hız") {
+                HStack {
+                    Text("Hız sınırı")
+                    Spacer()
+                    TextField("", value: $speedLimitKB, format: .number).frame(width: 80).multilineTextAlignment(.trailing)
+                    Text("KB/sn")
+                }
+                Toggle("Yavaş mod", isOn: $slowMode)
+                    .help("Menü çubuğundan da açılıp kapanır. Açıkken aşağıdaki hız geçerli olur.")
+                HStack {
+                    Text("Yavaş modda hız").foregroundStyle(slowMode ? .primary : .secondary)
+                    Spacer()
+                    TextField("", value: $slowModeKB, format: .number).frame(width: 80).multilineTextAlignment(.trailing)
+                    Text("KB/sn")
+                }
+                Text("0 = sınırsız. Sınır dosya ve torrent indirmelerinin toplamına uygulanır; videolarda her video başlarken kendi payını alır.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Zamanlayıcı") {
+                Toggle("İndirmeleri yalnızca bu saatlerde yap", isOn: $scheduleOn)
+                HStack {
+                    DatePicker("Başlangıç", selection: time($scheduleStart), displayedComponents: .hourAndMinute)
+                    DatePicker("Bitiş", selection: time($scheduleStop), displayedComponents: .hourAndMinute)
+                }
+                .disabled(!scheduleOn)
+                Text("Bu saatlerin dışında eklenen indirmeler sırada bekler ve başlangıç saatinde kendiliğinden başlar; bitiş saatinde süren indirmeler durup ertesi gün devam eder.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Picker("Hepsi bitince", selection: $afterAll) {
+                    ForEach(Schedule.AfterAll.allCases) { a in Text(a.title).tag(a.rawValue) }
+                }
+                Text("Bir kez uygulanır, ardından \"Bir şey yapma\"ya döner. Yapmadan önce 60 saniye boyunca vazgeçme şansı verir.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Güncelleme") {
+                Toggle("Yeni sürümleri kendiliğinden denetle", isOn: $autoUpdateCheck)
+                HStack {
+                    Text(updater.status.isEmpty ? "Sürüm: \(Updater.currentCommit.prefix(7))" : updater.status)
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    Spacer()
+                    if updater.available != nil {
+                        Button(updater.installing ? "Kuruluyor…" : "Güncelle ve yeniden aç") { updater.install() }
+                            .disabled(updater.installing)
+                    }
+                    Button("Şimdi denetle") { updater.check() }.disabled(updater.installing)
                 }
             }
             Section("Video") {
@@ -54,8 +112,18 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520)
+        .frame(width: 540, height: 700)
         .padding()
+    }
+
+    /// Seconds since midnight shown as a time of day.
+    private func time(_ seconds: Binding<Int>) -> Binding<Date> {
+        Binding(
+            get: { Calendar.current.startOfDay(for: Date()).addingTimeInterval(TimeInterval(seconds.wrappedValue)) },
+            set: { d in
+                let c = Calendar.current.dateComponents([.hour, .minute], from: d)
+                seconds.wrappedValue = (c.hour ?? 0) * 3600 + (c.minute ?? 0) * 60
+            })
     }
 
     private func chooseFolder() {

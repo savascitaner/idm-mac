@@ -19,6 +19,16 @@ let appBundlePath: String = {
     return exe.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().path
 }()
 
+/// Version of the extension files MDM last copied out (the folder Chrome loads the extension from),
+/// so the extension can reload itself after MDM was updated.
+func exportedExtensionVersion() -> String? {
+    let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    let manifest = base.appendingPathComponent("IDMMac/ChromeExtension/manifest.json")
+    guard let data = try? Data(contentsOf: manifest),
+          let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
+    return obj["version"] as? String
+}
+
 let outLock = NSLock()
 
 func writeAll(_ fd: Int32, _ data: Data) -> Bool {
@@ -146,7 +156,7 @@ while true {
             if let fd = connectSocket() { appFD = fd; startReader(fd); return true }
             return false
         }()
-        sendToChrome(["type": "pong", "id": id, "app": running])
+        sendToChrome(["type": "pong", "id": id, "app": running, "extension": exportedExtensionVersion() ?? ""])
         continue
     }
 

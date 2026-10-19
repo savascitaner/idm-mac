@@ -278,8 +278,19 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         if segments[idx].isComplete {
             finishedTasks.insert(dataTask.taskIdentifier)
             dataTask.cancel()
+            report(force: false)
+            return
         }
         report(force: false)
+        // Speed limit: stop reading for a moment; TCP then slows the server down.
+        let wait = RateLimiter.shared.take(chunk.count)
+        if wait > 0.005 {
+            dataTask.suspend()
+            queue.asyncAfter(deadline: .now() + min(wait, 5)) { [weak self] in
+                guard let self, !self.stopped, self.taskSegment[dataTask.taskIdentifier] != nil else { return }
+                dataTask.resume()
+            }
+        }
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {

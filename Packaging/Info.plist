@@ -16,6 +16,8 @@
     <key>NSHumanReadableCopyright</key><string>© 2026 __OWNER__. Tüm hakları saklıdır.</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>IDMBridgeToken</key><string>__TOKEN__</string>
+    <key>MDMCommit</key><string>__COMMIT__</string>
+    <key>NSAppleEventsUsageDescription</key><string>İndirmeler bitince Mac'i kapatmak için.</string>
     <key>CFBundleURLTypes</key>
     <array>
         <dict>

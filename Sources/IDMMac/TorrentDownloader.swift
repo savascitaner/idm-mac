@@ -22,7 +22,10 @@ final class TorrentService {
     /// Starts rqbit if it isn't answering yet, then reports whether it is ready.
     func ensureRunning(_ done: @escaping (Bool) -> Void) {
         Self.call("GET", "/", timeout: 2) { r in
-            if case .success = r { return done(true) }
+            if case .success = r {
+                self.pushLimit()
+                return done(true)
+            }
             self.waiting.append(done)
             guard self.waiting.count == 1 else { return }
             self.launch()
@@ -60,9 +63,24 @@ final class TorrentService {
     }
 
     private func finish(_ ok: Bool) {
+        if ok { pushLimit() }
         let w = waiting
         waiting = []
         w.forEach { $0(ok) }
+    }
+
+    /// The download cap for all torrents (bytes per second, 0 = none). Uploads are not capped.
+    private var limit = 0
+
+    func setLimit(_ bytesPerSecond: Int) {
+        limit = bytesPerSecond
+        if process?.isRunning == true { pushLimit() }
+    }
+
+    private func pushLimit() {
+        let body: [String: Any] = ["download_bps": limit > 0 ? limit as Any : NSNull(), "upload_bps": NSNull()]
+        Self.call("POST", "/torrents/limits", body: try? JSONSerialization.data(withJSONObject: body),
+                  contentType: "application/json") { _ in }
     }
 
     func stop() {
@@ -76,12 +94,14 @@ final class TorrentService {
 
     /// One HTTP API call; JSON answers are decoded, the completion runs on the main thread.
     static func call(_ method: String, _ path: String, query: [URLQueryItem] = [], body: Data? = nil,
-                     timeout: TimeInterval = 30, completion: @escaping (Result<Any, Error>) -> Void) {
+                     contentType: String? = nil, timeout: TimeInterval = 30,
+                     completion: @escaping (Result<Any, Error>) -> Void) {
         var c = URLComponents(string: "http://127.0.0.1:\(port)\(path)")!
         if !query.isEmpty { c.queryItems = query }
         var req = URLRequest(url: c.url!, timeoutInterval: timeout)
         req.httpMethod = method
         req.httpBody = body
+        if let contentType { req.setValue(contentType, forHTTPHeaderField: "Content-Type") }
         URLSession.shared.dataTask(with: req) { data, response, error in
             let result: Result<Any, Error>
             if let error {

@@ -37,6 +37,9 @@ final class AppModel: ObservableObject {
     private var ticks = 0
     private var booted = false
     private var early: [[String: Any]] = []
+    var scheduleWasOpen = true
+    private var appliedLimit = -1
+    private let linkWindows = LinkWindowController()
 
     func boot() {
         if isDemo {
@@ -60,6 +63,7 @@ final class AppModel: ObservableObject {
         _ = HostInstaller.exportExtension()
         _ = Tools.ytdlp
         Tools.updateYtdlpIfNeeded()
+        NotificationHandler.register()
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
         saveTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
             Task { @MainActor in AppModel.shared.save() }
@@ -69,6 +73,8 @@ final class AppModel: ObservableObject {
         }
         SafariBridge.registerExtension()
         if !isDemo {
+            ClipboardWatcher.shared.start()
+            Updater.shared.start()
             SafariWatcher.shared.start([downloadDirectory,
                                         FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0].path])
         }
@@ -95,6 +101,8 @@ final class AppModel: ObservableObject {
             speedSeries[d.id] = s
         }
         updateDock()
+        checkSchedule()
+        applySpeedLimit()
         ticks += 1
         if ticks % 10 == 0 { refreshDisk() }
     }
@@ -155,6 +163,13 @@ final class AppModel: ObservableObject {
             notifyUser("İndirme sıraya alındı", c.info.title)
         case "torrent":
             if let s = msg["url"] as? String { addTorrent(s) }
+        case "links":
+            let req = LinkRequest(msg, headers: headers, cookies: cookies)
+            if req.links.isEmpty {
+                notifyUser("Link bulunamadı", "Bu sayfada indirilecek bir link yok")
+            } else {
+                linkWindows.show(req)
+            }
         case "url":
             guard let s = msg["url"] as? String, let u = URL(string: s) else { return }
             if TorrentDownloader.isTorrent(url: s) {
@@ -238,6 +253,25 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// The cookies a browser would send to this URL's host (a page's links can point to many sites).
+    static func cookies(_ all: [BrowserCookie], for url: String) -> [BrowserCookie] {
+        guard let host = URL(string: url)?.host?.lowercased() else { return [] }
+        let https = url.lowercased().hasPrefix("https:")
+        return all.filter { c in
+            let d = c.domain.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
+            let match = c.hostOnly ? host == d : (host == d || host.hasSuffix("." + d))
+            return match && (https || !c.secure)
+        }
+    }
+
+    /// Queues the links picked in the "download all links" window, in page order.
+    func addLinks(_ links: [PageLink], from req: LinkRequest) {
+        for l in links {
+            addFile(url: l.url, headers: req.headers, cookies: Self.cookies(req.cookies, for: l.url), quiet: true)
+        }
+        notifyUser("İndirmeler sıraya alındı", "\(req.title.isEmpty ? req.pageURL : req.title): \(links.count) dosya")
+    }
+
     static func cookieHeader(_ cookies: [BrowserCookie]) -> String {
         cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
     }
@@ -245,11 +279,12 @@ final class AppModel: ObservableObject {
     // MARK: Adding
 
     func addFile(url: String, fileName: String = "", headers: [String: String] = [:], cookies: [BrowserCookie] = [],
-                 browserMime: String? = nil, originalURL: String? = nil, fallback: String? = nil) {
+                 browserMime: String? = nil, originalURL: String? = nil, fallback: String? = nil, quiet: Bool = false) {
         var h = headers
         if !cookies.isEmpty { h["Cookie"] = Self.cookieHeader(cookies) }
         if TorrentDownloader.isTorrent(url: url, fileName: fileName, mime: browserMime) {
-            return addTorrent(url, name: (fileName as NSString).deletingPathExtension, headers: h, pageURL: headers["Referer"])
+            return addTorrent(url, name: (fileName as NSString).deletingPathExtension, headers: h, pageURL: headers["Referer"],
+                              quiet: quiet)
         }
         var name = FileMeta.sanitize(URL(fileURLWithPath: fileName).lastPathComponent)
         if fileName.isEmpty { name = "" }
@@ -259,12 +294,13 @@ final class AppModel: ObservableObject {
         rec.originalURL = originalURL
         rec.browserFallback = fallback.flatMap { $0.isEmpty ? nil : $0 }
         downloads.insert(rec, at: 0)
-        notifyUser("İndirme başladı", name.isEmpty ? url : name)
+        if !quiet { notifyUser("İndirme başladı", name.isEmpty ? url : name) }
         pump()
     }
 
     /// A magnet link, a .torrent URL or a local .torrent file; rqbit downloads it.
-    func addTorrent(_ source: String, name: String = "", headers: [String: String] = [:], pageURL: String? = nil) {
+    func addTorrent(_ source: String, name: String = "", headers: [String: String] = [:], pageURL: String? = nil,
+                    quiet: Bool = false) {
         if let existing = downloads.first(where: { $0.kind == .torrent && $0.url == source && $0.state != .completed }) {
             if existing.state == .paused || existing.state == .failed { resume(existing.id) }
             return
@@ -278,7 +314,7 @@ final class AppModel: ObservableObject {
                                  directory: downloadDirectory, headers: headers)
         rec.connections = 0
         downloads.insert(rec, at: 0)
-        notifyUser("Torrent eklendi", rec.fileName)
+        if !quiet { notifyUser("Torrent eklendi", rec.fileName) }
         pump()
     }
 
@@ -350,6 +386,8 @@ final class AppModel: ObservableObject {
 
     /// Starts queued downloads up to the parallel limit.
     func pump() {
+        // Outside the scheduled hours new downloads wait in the queue.
+        guard Schedule.allowsNow else { return updateSleepAssertion() }
         let running = downloads.filter { $0.state == .downloading }.count
         var slots = max(1, maxParallel) - running
         for i in downloads.indices.reversed() where slots > 0 && downloads[i].state == .queued {
@@ -420,6 +458,7 @@ final class AppModel: ObservableObject {
             downloads[i].headers["Cookie"] = nil
             finished(id)
             notifyUser("İndirme tamamlandı", downloads[i].fileName)
+            checkAllDone()
         case .failed(var msg, let s):
             merge(s)
             if downloads[i].browserFallback == "safari",
@@ -445,6 +484,7 @@ final class AppModel: ObservableObject {
             downloads[i].speed = 0
             finished(id)
             notifyUser("İndirme başarısız", "\(downloads[i].fileName): \(msg)")
+            checkAllDone()
         }
     }
 
@@ -470,6 +510,15 @@ final class AppModel: ObservableObject {
     // MARK: User actions
 
     func pause(_ id: UUID) {
+        stop(id, as: .paused)
+    }
+
+    /// Stops a running download but keeps it in the queue (the scheduler's window closed).
+    func hold(_ id: UUID) {
+        stop(id, as: .queued)
+    }
+
+    private func stop(_ id: UUID, as state: DownloadState) {
         guard let i = downloads.firstIndex(where: { $0.id == id }), downloads[i].isActive else { return }
         fileEngines[id]?.pause()
         videoEngines[id]?.pause()
@@ -478,10 +527,19 @@ final class AppModel: ObservableObject {
         videoEngines[id] = nil
         torrentEngines[id] = nil
         lastBytes[id] = nil
-        downloads[i].state = .paused
+        downloads[i].state = state
         downloads[i].speed = 0
         save()
         pump()
+    }
+
+    /// Hands the current cap to the file downloads and to rqbit when it changes.
+    func applySpeedLimit() {
+        let bps = SpeedLimit.bytesPerSecond
+        guard bps != appliedLimit else { return }
+        appliedLimit = bps
+        RateLimiter.shared.set(bps)
+        TorrentService.shared.setLimit(bps)
     }
 
     func resume(_ id: UUID) {
@@ -570,7 +628,7 @@ final class AppModel: ObservableObject {
         NSApp?.dockTile.badgeLabel = busy ? "\(activeCount)" : nil
     }
 
-    private func notifyUser(_ title: String, _ body: String) {
+    func notifyUser(_ title: String, _ body: String) {
         guard notify else { return }
         let c = UNMutableNotificationContent()
         c.title = title
@@ -590,7 +648,8 @@ final class AppModel: ObservableObject {
     func load() {
         guard let data = try? Data(contentsOf: Paths.database),
               var list = try? JSONDecoder().decode([DownloadRecord].self, from: data) else { return }
-        for i in list.indices where list[i].state == .downloading || list[i].state == .queued {
+        // Downloads waiting for the scheduler stay in the queue; everything else comes back paused.
+        for i in list.indices where list[i].state == .downloading || (list[i].state == .queued && !Schedule.isOn) {
             list[i].state = .paused
             list[i].speed = 0
         }

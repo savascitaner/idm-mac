@@ -50,6 +50,7 @@ struct ContentView: View {
         VStack(spacing: 0) {
             DashboardHeader()
             Divider()
+            NoticeBar()
             HStack(spacing: 0) {
                 Group {
                     if model.downloads.isEmpty {
@@ -327,6 +328,44 @@ struct ExtensionHelpSheet: View {
                  ? "Uyarı: Chrome profili bulunamadı. Chrome'u bir kez açıp bu uygulamayı yeniden başlat."
                  : "Bağlanan tarayıcılar: " + model.browsersLinked.joined(separator: ", "))
                 .font(.caption).foregroundStyle(model.browsersLinked.isEmpty ? .orange : .secondary)
+        }
+    }
+}
+
+/// One-line notices above the list: a newer MDM, or downloads waiting for the scheduler.
+struct NoticeBar: View {
+    @EnvironmentObject var model: AppModel
+    @ObservedObject private var updater = Updater.shared
+    @AppStorage("scheduleOn") private var scheduleOn = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if let v = updater.available {
+                bar("arrow.down.app.fill", .blue, "MDM'nin yeni sürümü hazır (\(v)).") {
+                    Button(updater.installing ? "Kuruluyor…" : "Güncelle ve yeniden aç") { updater.install() }
+                        .disabled(updater.installing)
+                }
+            }
+            if scheduleOn, !Schedule.allowsNow, model.queuedCount > 0 {
+                bar("clock.fill", .orange,
+                    "\(model.queuedCount) indirme zamanlayıcıyı bekliyor, saat \(Schedule.clock(Schedule.start)) olunca başlayacak.") {
+                    Button("Zamanlayıcıyı kapat") { scheduleOn = false; model.pump() }
+                }
+            }
+        }
+    }
+
+    private func bar<B: View>(_ icon: String, _ tint: Color, _ text: String, @ViewBuilder button: () -> B) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: icon).foregroundStyle(tint)
+                Text(text).font(.callout)
+                Spacer()
+                button().controlSize(.small)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 7)
+            .background(tint.opacity(0.08))
+            Divider()
         }
     }
 }

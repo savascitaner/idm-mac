@@ -19,7 +19,9 @@ cp "$BIN/IDMMac" "$BIN/IDMMacHost" "$APP/Contents/MacOS/"
 OWNER="${OWNER:-Enes Savaşçı}"
 # Shared secret between the app and its Safari extension (see SafariBridge.swift).
 TOKEN="$(uuidgen | tr -d '-')"
-fill() { sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" -e "s/__OWNER__/$OWNER/" -e "s/__TOKEN__/$TOKEN/" "$1"; }
+# The app compares this with the "latest" release to offer updates.
+COMMIT="${GITHUB_SHA:-dev}"
+fill() { sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" -e "s/__OWNER__/$OWNER/" -e "s/__TOKEN__/$TOKEN/" -e "s/__COMMIT__/$COMMIT/" "$1"; }
 fill Packaging/Info.plist > "$APP/Contents/Info.plist"
 cp -R Extension "$APP/Contents/Resources/ChromeExtension"
 

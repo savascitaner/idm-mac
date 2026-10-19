@@ -253,6 +253,8 @@ final class VideoDownloader {
                  "--progress-template", "download:IDMPROG %(progress.downloaded_bytes)s|%(progress.total_bytes)s|%(progress.total_bytes_estimate)s|%(progress.speed)s",
                  "--print", "after_move:IDMFILE %(filepath)s"]
         if let s = record.videoSort { args += ["-S", s] }
+        // yt-dlp takes the cap once, when it starts.
+        if SpeedLimit.bytesPerSecond > 0 { args += ["--limit-rate", "\(SpeedLimit.bytesPerSecond)"] }
         if !record.audioOnly { args += ["--merge-output-format", "mp4"] }
         args.append(record.url)
 

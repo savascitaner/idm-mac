@@ -22,6 +22,25 @@
     true
   );
 
+  // "Sayfadaki tüm linkleri indir": the toolbar menu asks the page for its links and media sources.
+  if (window === top) {
+    chrome.runtime.onMessage.addListener((m, _sender, reply) => {
+      if (!m || m.type !== "collectLinks") return;
+      const seen = new Set();
+      const items = [];
+      const add = (url, text) => {
+        if (!url || !/^https?:/i.test(url) || seen.has(url)) return;
+        seen.add(url);
+        items.push({ url, text: (text || "").replace(/\s+/g, " ").trim().slice(0, 200) });
+      };
+      for (const a of document.querySelectorAll("a[href]")) add(a.href, a.textContent || a.title);
+      for (const el of document.querySelectorAll("img[src], video[src], audio[src], source[src]")) {
+        add(el.currentSrc || el.src, el.alt || el.title || "");
+      }
+      reply({ pageUrl: location.href, title: document.title, items: items.slice(0, m.max || 2000) });
+    });
+  }
+
   let enabled = true;
   chrome.storage.local.get({ videoButton: true }, (s) => (enabled = s.videoButton));
   chrome.storage.onChanged.addListener((c) => {

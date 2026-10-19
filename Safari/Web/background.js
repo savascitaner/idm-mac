@@ -63,6 +63,28 @@ async function sendLink(url, referrer, filename, guess) {
 
 const ok = (res) => !!res && res.type === "accepted";
 
+/** Asks the page for its links and opens MDM's picker. The message travels inside a URL, so it is kept short. */
+async function sendAllLinks(tabId) {
+  let res = null;
+  try {
+    res = await api.tabs.sendMessage(tabId, { type: "collectLinks", max: 400 }, { frameId: 0 });
+  } catch (e) {
+    return false;
+  }
+  if (!res) return false;
+  return ok(
+    await send({
+      type: "links",
+      pageUrl: res.pageUrl,
+      title: res.title,
+      items: res.items,
+      referrer: res.pageUrl,
+      userAgent: navigator.userAgent,
+      cookies: await cookiesFor(res.pageUrl),
+    })
+  );
+}
+
 api.runtime.onMessage.addListener((msg, sender, reply) => {
   (async () => {
     switch (msg.type) {
@@ -74,6 +96,9 @@ api.runtime.onMessage.addListener((msg, sender, reply) => {
         break;
       case "url":
         reply({ ok: ok(await send({ type: "url", url: msg.url, userAgent: navigator.userAgent, cookies: await cookiesFor(msg.url) })) });
+        break;
+      case "allLinks":
+        reply({ ok: await sendAllLinks(msg.tabId) });
         break;
       case "status": {
         const res = await send({ type: "ping" });
@@ -98,6 +123,7 @@ api.runtime.onInstalled.addListener(() => {
   api.contextMenus.removeAll(() => {
     api.contextMenus.create({ id: "idm-link", title: "MDM ile indir", contexts: ["link", "image", "audio"] });
     api.contextMenus.create({ id: "idm-video", title: "Bu videoyu MDM ile indir", contexts: ["video", "page", "frame"] });
+    api.contextMenus.create({ id: "idm-all", title: "Sayfadaki tüm linkleri MDM ile indir…", contexts: ["page"] });
   });
 });
 
@@ -106,5 +132,7 @@ api.contextMenus.onClicked.addListener((info, tab) => {
     sendLink(info.linkUrl || info.srcUrl, info.pageUrl);
   } else if (info.menuItemId === "idm-video") {
     sendVideo({ pageUrl: info.frameUrl || info.pageUrl, mediaUrl: info.srcUrl, title: tab?.title, referrer: info.pageUrl });
+  } else if (info.menuItemId === "idm-all" && tab) {
+    sendAllLinks(tab.id);
   }
 });

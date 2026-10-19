@@ -380,6 +380,10 @@ struct DockTileView: View {
 struct MenuBarPanel: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.openWindow) private var openWindow
+    @AppStorage("slowMode") private var slowMode = false
+    @AppStorage("slowModeKB") private var slowModeKB = 256
+    @AppStorage("afterAll") private var afterAll = Schedule.AfterAll.none.rawValue
+    @ObservedObject private var updater = Updater.shared
 
     var body: some View {
         let items = Array(model.downloads.filter { $0.isActive || $0.state == .paused }.prefix(5))
@@ -393,6 +397,21 @@ struct MenuBarPanel: View {
                     .foregroundStyle(model.activeCount > 0 ? Color.accentColor : .secondary)
             }
             Sparkline(samples: model.speedHistory).frame(height: 40)
+            HStack(spacing: 10) {
+                Toggle(isOn: $slowMode) { Label("Yavaş mod (\(slowModeKB) KB/sn)", systemImage: "tortoise") }
+                    .toggleStyle(.button).controlSize(.small)
+                Spacer()
+                Picker("Bitince", selection: $afterAll) {
+                    ForEach(Schedule.AfterAll.allCases) { a in Text(a.title).tag(a.rawValue) }
+                }
+                .controlSize(.small).fixedSize()
+            }
+            if let v = updater.available {
+                Button { updater.install() } label: {
+                    Label(updater.installing ? "Güncelleniyor…" : "Yeni sürüm var (\(v)), kur", systemImage: "arrow.down.app")
+                }
+                .controlSize(.small).disabled(updater.installing)
+            }
             if items.isEmpty {
                 Text("Etkin indirme yok").font(.callout).foregroundStyle(.secondary)
             } else {

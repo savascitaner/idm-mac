@@ -307,6 +307,9 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         reply({ ok: !!res && res.type === "accepted" });
         break;
       }
+      case "allLinks":
+        reply({ ok: await sendAllLinks(msg.tabId) });
+        break;
       case "status": {
         const res = await send({ type: "ping" }, 4000);
         reply({ host: !!res, app: !!res?.app });
@@ -324,12 +327,61 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   return true;
 });
 
+// ---------- All links on a page ----------
+
+/** Asks the page for every link on it and opens MDM's picker with them. */
+async function sendAllLinks(tabId) {
+  const res = await new Promise((resolve) =>
+    chrome.tabs.sendMessage(tabId, { type: "collectLinks" }, { frameId: 0 }, (r) => {
+      void chrome.runtime.lastError;
+      resolve(r);
+    })
+  );
+  if (!res) return false;
+  // Cookies for the page and the sites its links point to; the app sends each link only its own.
+  const origins = new Set();
+  for (const i of res.items) {
+    try {
+      origins.add(new URL(i.url).origin + "/");
+    } catch (e) {
+      /* not a URL */
+    }
+    if (origins.size >= 15) break;
+  }
+  const reply = await send({
+    type: "links",
+    pageUrl: res.pageUrl,
+    title: res.title,
+    items: res.items,
+    referrer: res.pageUrl,
+    userAgent: navigator.userAgent,
+    cookies: await cookiesFor(res.pageUrl, ...origins),
+  });
+  return !!reply && reply.type === "accepted";
+}
+
+// ---------- Updates ----------
+
+// After MDM updates itself it writes the new extension files to the folder Chrome loads them from;
+// reloading picks them up. reloadedFor stops a loop if Chrome loads the extension from another folder.
+async function reloadIfUpdated() {
+  const res = await send({ type: "ping" }, 4000);
+  const want = res && res.extension;
+  if (!want || want === chrome.runtime.getManifest().version) return;
+  const { reloadedFor } = await chrome.storage.local.get({ reloadedFor: "" });
+  if (reloadedFor === want) return;
+  await chrome.storage.local.set({ reloadedFor: want });
+  chrome.runtime.reload();
+}
+reloadIfUpdated();
+
 // ---------- Context menu ----------
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({ id: "idm-link", title: "MDM ile indir", contexts: ["link", "image", "audio"] });
     chrome.contextMenus.create({ id: "idm-video", title: "Bu videoyu MDM ile indir", contexts: ["video", "page", "frame"] });
+    chrome.contextMenus.create({ id: "idm-all", title: "Sayfadaki tüm linkleri MDM ile indir…", contexts: ["page"] });
   });
 });
 
@@ -341,5 +393,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       ? info.frameUrl
       : info.pageUrl;
     sendVideo({ pageUrl, mediaUrl: info.srcUrl, title: tab?.title, referrer: info.pageUrl });
+  } else if (info.menuItemId === "idm-all" && tab) {
+    sendAllLinks(tab.id);
   }
 });

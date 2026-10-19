@@ -38,6 +38,14 @@ async function main() {
     });
   });
 
+  $("allLinks").addEventListener("click", () => {
+    $("allLinks").textContent = "Gönderiliyor…";
+    chrome.runtime.sendMessage({ type: "allLinks", tabId: tab.id }, (r) => {
+      $("allLinks").textContent = r && r.ok ? "MDM'de açıldı ✓" : "Linkler alınamadı";
+      setTimeout(() => window.close(), 900);
+    });
+  });
+
   $("add").addEventListener("submit", (e) => {
     e.preventDefault();
     const url = $("url").value.trim();

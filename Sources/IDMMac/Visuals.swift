@@ -53,8 +53,13 @@ enum Category: String, CaseIterable, Identifiable {
     static func of(_ rec: DownloadRecord) -> Category {
         if rec.kind == .video { return rec.audioOnly ? .music : .video }
         if rec.kind == .torrent { return .torrent }
-        let ext = (rec.fileName as NSString).pathExtension.lowercased()
-        return map.first { $0.value.contains(ext) }?.key ?? .other
+        return of(extension: (rec.fileName as NSString).pathExtension)
+    }
+
+    static func of(extension ext: String) -> Category {
+        let e = ext.lowercased()
+        if e == "torrent" { return .torrent }
+        return map.first { $0.value.contains(e) }?.key ?? .other
     }
 }
 
