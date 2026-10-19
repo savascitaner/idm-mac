@@ -67,6 +67,10 @@ final class AppModel: ObservableObject {
             Task { @MainActor in AppModel.shared.tick() }
         }
         SafariBridge.registerExtension()
+        if !isDemo {
+            SafariWatcher.shared.start([downloadDirectory,
+                                        FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0].path])
+        }
         booted = true
         early.forEach(handle)
         early = []
@@ -381,8 +385,10 @@ final class AppModel: ObservableObject {
             notifyUser("İndirme tamamlandı", downloads[i].fileName)
         case .failed(var msg, let s):
             merge(s)
-            if msg == SegmentedDownloader.htmlInsteadOfFile, downloads[i].browserFallback == "safari" {
-                // A guessed Safari link that is a web page after all: open it there and forget it.
+            if downloads[i].browserFallback == "safari",
+               msg == SegmentedDownloader.htmlInsteadOfFile || msg.hasPrefix("Sunucu hatası") {
+                // A guessed link that is a web page, or a file the server only gives with Safari's
+                // cookies: open it in Safari again (which then downloads it itself) and forget it.
                 if let t = downloads[i].tempPath { try? FileManager.default.removeItem(atPath: t) }
                 Self.openInSafari(downloads[i].originalURL ?? downloads[i].url)
                 downloads.remove(at: i)
@@ -407,6 +413,7 @@ final class AppModel: ObservableObject {
 
     static func openInSafari(_ s: String) {
         guard let url = URL(string: s) else { return }
+        SafariWatcher.shared.handBack(s)
         if let safari = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Safari") {
             NSWorkspace.shared.open([url], withApplicationAt: safari, configuration: NSWorkspace.OpenConfiguration())
         } else {

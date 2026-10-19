@@ -8,6 +8,7 @@ struct SettingsView: View {
     @AppStorage("connections") private var connections: Int = 8
     @AppStorage("maxParallel") private var maxParallel: Int = 3
     @AppStorage("notify") private var notify: Bool = true
+    @AppStorage("safariTakeover") private var safariTakeover: Bool = true
     @State private var updateOutput = ""
 
     var body: some View {
@@ -22,6 +23,8 @@ struct SettingsView: View {
                 Stepper("Dosya başına bağlantı: \(connections)", value: $connections, in: 1...32)
                 Stepper("Aynı anda indirme: \(maxParallel)", value: $maxParallel, in: 1...10)
                 Toggle("Bitince bildirim göster", isOn: $notify)
+                Toggle("Safari'nin kendi başlattığı indirmeleri devral", isOn: $safariTakeover)
+                    .help("Başka bir uygulamadan açılan linkler de dahil, Safari bir dosya indirmeye başlayınca MDM onu alır.")
             }
             Section("Video") {
                 HStack {

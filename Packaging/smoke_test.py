@@ -146,6 +146,23 @@ def main():
     if not m or m.get("type") != "info" or m.get("id") != "q1":
         fail("hover menu probe got no answer")
 
+    # A download Safari started by itself ("name.download" with Info.plist) is taken over by the app.
+    sdir = Path.home() / "Downloads" / "safari-test.bin.download"
+    sdir.mkdir(parents=True, exist_ok=True)
+    surl = url + ("&" if "?" in url else "?") + "safari=1"
+    plistlib.dump({"DownloadEntryURL": surl, "DownloadEntryPath": str(sdir)}, open(sdir / "Info.plist", "wb"))
+    deadline = time.time() + 30
+    taken = None
+    while time.time() < deadline and not taken:
+        time.sleep(2)
+        try:
+            taken = next((d for d in json.loads(DB.read_text()) if d.get("url") == surl), None)
+        except (ValueError, OSError):
+            pass
+    print("safari takeover:", taken and taken.get("state"), "bundle left:", sdir.exists())
+    if not taken or sdir.exists():
+        fail("Safari's own download was not taken over")
+
     # Safari extension: bundled and signed, and the idmmac:// bridge it uses reaches the app.
     appex = APP / "Contents/PlugIns/IDMMacSafari.appex"
     if not (appex / "Contents/Resources/manifest.json").exists():
