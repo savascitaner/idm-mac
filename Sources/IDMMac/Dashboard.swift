@@ -458,6 +458,7 @@ struct MenuBarPanel: View {
 @MainActor
 enum DemoData {
     static func fill(_ m: AppModel) {
+        m.browsersLinked = ["Google/Chrome"]
         let dir = m.downloadDirectory
         func segments(total: Int64, n: Int, done: [Double]) -> [Segment] {
             let size = total / Int64(n)

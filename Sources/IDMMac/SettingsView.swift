@@ -3,6 +3,9 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct SettingsView: View {
+    /// Taller only for the guide's snapshot, so every section shows.
+    static var height: CGFloat = 700
+
     @EnvironmentObject var model: AppModel
     @ObservedObject private var safariWatcher = SafariWatcher.shared
     @AppStorage("downloadDirectory") private var downloadDirectory: String = FileManager.default
@@ -112,7 +115,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 540, height: 700)
+        .frame(width: 540, height: Self.height)
         .padding()
     }
 

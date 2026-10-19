@@ -61,7 +61,8 @@ final class AppModel: ObservableObject {
             Task { @MainActor in AppModel.shared.handle(msg) }
         }
         server?.start()
-        browsersLinked = HostInstaller.install()
+        let linked = HostInstaller.install()
+        if !isDemo { browsersLinked = linked }
         _ = HostInstaller.exportExtension()
         _ = Tools.ytdlp
         Tools.updateYtdlpIfNeeded()

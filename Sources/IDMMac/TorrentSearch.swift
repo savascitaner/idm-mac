@@ -70,7 +70,8 @@ struct InternetArchiveSource: TorrentSource {
 
     func search(_ query: String) async throws -> [TorrentResult] {
         // Items in the lending library can only be borrowed, so they have no torrent.
-        let q = "(\(query)) AND mediatype:(movies OR audio OR texts OR software OR image) "
+        // Only titles and authors: a plain text search also matches words buried in descriptions.
+        let q = "(title:(\(query)) OR creator:(\(query))) AND mediatype:(movies OR audio OR texts OR software OR image) "
             + "AND NOT collection:(inlibrary OR printdisabled OR lendinglibrary)"
         var c = URLComponents(string: "https://archive.org/advancedsearch.php")!
         c.queryItems = [URLQueryItem(name: "q", value: q)]
