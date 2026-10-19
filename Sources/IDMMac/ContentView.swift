@@ -269,6 +269,7 @@ struct ExtensionHelpSheet: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @State private var browser = 0
+    @State private var safariReport = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -295,13 +296,27 @@ struct ExtensionHelpSheet: View {
                 Text("1. Safari > Ayarlar > **Gelişmiş** sekmesinde **Web geliştiricileri için özellikleri göster** kutusunu işaretle.")
                 Text("2. Safari > Ayarlar > **Geliştirici** sekmesinde **İmzasız uzantılara izin ver** kutusunu işaretle.")
                 Text("3. Safari > Ayarlar > **Uzantılar**'da **MDM**'yi işaretle, sonra **Tüm web sitelerinde her zaman izin ver**'i seç.")
-                Text("Uygulama Apple imzalı olmadığı için 2. adım Safari her kapanınca sıfırlanır; Safari'yi her açtığında yeniden işaretle.")
+                Text("Uygulama Apple imzalı olmadığı için 2. adım Safari her kapanınca sıfırlanır; Safari'yi her açtığında yeniden işaretle. Uzantı Ayarlar > Uzantılar listesinde yoksa Safari'yi bir kez Cmd+Q ile kapatıp aç; yine yoksa aşağıdaki \"Yeniden kaydet\" düğmesine bas.")
                     .font(.caption).foregroundStyle(.secondary)
                 Text("Safari'de linke tıklayınca yakalama sadece .dmg, .zip, .mp4 gibi uzantısı belli linklerde çalışır. Video butonu ve sağ tık menüsü Chrome'daki gibi çalışır.")
                     .font(.caption).foregroundStyle(.secondary)
             }
-            Button("Safari'de uzantı ayarlarını aç") {
-                SFSafariApplication.showPreferencesForExtension(withIdentifier: SafariBridge.extensionID) { _ in }
+            HStack {
+                Button("Safari'de uzantı ayarlarını aç") {
+                    SFSafariApplication.showPreferencesForExtension(withIdentifier: SafariBridge.extensionID) { _ in }
+                }
+                Button("Uzantı listede yok mu? Yeniden kaydet") {
+                    safariReport = "Kaydediliyor…"
+                    DispatchQueue.global().async {
+                        let r = SafariBridge.registerExtension()
+                        DispatchQueue.main.async {
+                            safariReport = r + "\nSafari'yi Cmd+Q ile tamamen kapat, yeniden aç, sonra Ayarlar > Uzantılar'a bak."
+                        }
+                    }
+                }
+            }
+            if !safariReport.isEmpty {
+                Text(safariReport).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
             }
         }
     }

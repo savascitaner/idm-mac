@@ -73,7 +73,7 @@ final class AppModel: ObservableObject {
         speedTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
             Task { @MainActor in AppModel.shared.tick() }
         }
-        SafariBridge.registerExtension()
+        DispatchQueue.global().async { SafariBridge.registerExtension() }
         if !isDemo {
             ClipboardWatcher.shared.start()
             Updater.shared.start()

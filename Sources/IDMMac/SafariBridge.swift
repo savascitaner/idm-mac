@@ -19,13 +19,40 @@ enum SafariBridge {
         return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
     }
 
-    /// Makes sure Safari lists the bundled extension (Launch Services usually does this on first launch).
-    static func registerExtension() {
-        guard let appex = Bundle.main.builtInPlugInsURL?.appendingPathComponent("IDMMacSafari.appex"),
-              FileManager.default.fileExists(atPath: appex.path) else { return }
+    private static func run(_ tool: String, _ args: [String]) -> String {
         let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/pluginkit")
-        p.arguments = ["-a", appex.path]
-        try? p.run()
+        p.executableURL = URL(fileURLWithPath: tool)
+        p.arguments = args
+        let out = Pipe()
+        p.standardOutput = out
+        p.standardError = out
+        guard (try? p.run()) != nil else { return "" }
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    /// Where macOS thinks the extension lives: the paths of every copy it has registered.
+    static func registeredPaths() -> [String] {
+        run("/usr/bin/pluginkit", ["-mAvv", "-i", extensionID]).split(separator: "\n").compactMap { line in
+            guard let r = line.range(of: "Path = ") else { return nil }
+            return String(line[r.upperBound...]).trimmingCharacters(in: .whitespaces)
+        }
+    }
+
+    /// Makes sure Safari lists the bundled extension: forgets copies registered at other places
+    /// (the mounted DMG, an older install) and registers the one inside this app.
+    /// Returns a short report for the setup window.
+    @discardableResult
+    static func registerExtension() -> String {
+        guard let appex = Bundle.main.builtInPlugInsURL?.appendingPathComponent("IDMMacSafari.appex"),
+              FileManager.default.fileExists(atPath: appex.path) else { return "Uygulamanın içinde Safari uzantısı yok" }
+        for old in registeredPaths() where old != appex.path { _ = run("/usr/bin/pluginkit", ["-r", old]) }
+        _ = run("/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister",
+                ["-f", "-R", "-trusted", Bundle.main.bundlePath])
+        _ = run("/usr/bin/pluginkit", ["-a", appex.path])
+        _ = run("/usr/bin/pluginkit", ["-e", "use", "-i", extensionID])
+        let now = registeredPaths()
+        return now.contains(appex.path) ? "Kayıtlı: \(appex.path)" : "Kaydedilemedi (macOS bu kopyayı listelemedi): \(appex.path)"
     }
 }
