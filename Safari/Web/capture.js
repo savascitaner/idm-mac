@@ -35,6 +35,14 @@
     return own.length > 0 && own.length < 40 && DOWNLOAD_WORDS.test(own);
   }
 
+  /** Download redirectors without a file name, like discord.com/api/download?platform=osx. The app
+   *  checks what the server sends and opens the link in Safari again if it turns out to be a page. */
+  function looksLikeRedirect(u) {
+    const path = u.pathname.toLowerCase();
+    if (!/(^|\/)(download|downloads|dl|getfile|get-file)(\.[a-z]+)?(\/|$)/.test(path)) return false;
+    return !!u.search || /(^|\/)api\//.test(path);
+  }
+
   function wanted(a) {
     if (!s.capture) return false;
     let u;
@@ -55,7 +63,7 @@
     // Any file the page itself marks as a download: a download attribute, or a "Download" button
     // pointing at a file (not at a web page) or at a file host.
     const isFile = !PAGE_EXTS.has(ext) || FILE_HOSTS.test(u.hostname);
-    if (!isFile) return false;
+    if (!isFile) return looksLikeRedirect(u) ? "guess" : false;
     if (a.hasAttribute("download") || saysDownload(a)) return true;
     // A file link on a file host (Discord's attachment name), but not an image that opens a viewer.
     return FILE_HOSTS.test(u.hostname) && !a.querySelector("img, video");
@@ -66,13 +74,14 @@
     (e) => {
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       const a = e.composedPath().find((el) => el.tagName === "A" && el.href);
-      if (!a || !wanted(a)) return;
+      const want = a && wanted(a);
+      if (!want) return;
       e.preventDefault();
       e.stopPropagation();
       const href = a.href;
       const newTab = a.target === "_blank";
       chrome.runtime.sendMessage(
-        { type: "link", url: href, referrer: location.href, filename: a.getAttribute("download") || "" },
+        { type: "link", url: href, referrer: location.href, filename: a.getAttribute("download") || "", guess: want === "guess" },
         (res) => {
           void chrome.runtime.lastError;
           if (res && res.ok) return;

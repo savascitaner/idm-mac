@@ -47,11 +47,14 @@ async function sendVideo({ pageUrl, mediaUrl, title, referrer }) {
   });
 }
 
-async function sendLink(url, referrer, filename) {
+async function sendLink(url, referrer, filename, guess) {
   return send({
     type: "download",
     url,
     filename: filename || "",
+    // For a guessed link the app expects a file and gives web pages back to Safari.
+    mime: guess ? "application/octet-stream" : "",
+    fallback: guess ? "safari" : "",
     referrer: referrer || "",
     userAgent: navigator.userAgent,
     cookies: await cookiesFor(url),
@@ -67,7 +70,7 @@ api.runtime.onMessage.addListener((msg, sender, reply) => {
         reply({ ok: ok(await sendVideo({ ...msg, referrer: msg.referrer || sender.tab?.url || "" })) });
         break;
       case "link":
-        reply({ ok: ok(await sendLink(msg.url, msg.referrer, msg.filename)) });
+        reply({ ok: ok(await sendLink(msg.url, msg.referrer, msg.filename, msg.guess)) });
         break;
       case "url":
         reply({ ok: ok(await send({ type: "url", url: msg.url, userAgent: navigator.userAgent, cookies: await cookiesFor(msg.url) })) });

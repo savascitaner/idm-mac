@@ -131,7 +131,8 @@ final class AppModel: ObservableObject {
         case "download":
             guard let url = msg["url"] as? String else { return }
             addFile(url: url, fileName: msg["filename"] as? String ?? "", headers: headers, cookies: cookies,
-                    browserMime: msg["mime"] as? String, originalURL: msg["originalUrl"] as? String)
+                    browserMime: msg["mime"] as? String,
+                    originalURL: msg["originalUrl"] as? String, fallback: msg["fallback"] as? String)
         case "video":
             let page = msg["pageUrl"] as? String ?? ""
             let media = msg["mediaUrl"] as? String
@@ -232,7 +233,7 @@ final class AppModel: ObservableObject {
     // MARK: Adding
 
     func addFile(url: String, fileName: String = "", headers: [String: String] = [:], cookies: [BrowserCookie] = [],
-                 browserMime: String? = nil, originalURL: String? = nil) {
+                 browserMime: String? = nil, originalURL: String? = nil, fallback: String? = nil) {
         var h = headers
         if !cookies.isEmpty { h["Cookie"] = Self.cookieHeader(cookies) }
         var name = FileMeta.sanitize(URL(fileURLWithPath: fileName).lastPathComponent)
@@ -241,6 +242,7 @@ final class AppModel: ObservableObject {
                                  directory: downloadDirectory, headers: h)
         rec.browserMime = browserMime
         rec.originalURL = originalURL
+        rec.browserFallback = fallback.flatMap { $0.isEmpty ? nil : $0 }
         downloads.insert(rec, at: 0)
         notifyUser("İndirme başladı", name.isEmpty ? url : name)
         pump()
@@ -379,6 +381,14 @@ final class AppModel: ObservableObject {
             notifyUser("İndirme tamamlandı", downloads[i].fileName)
         case .failed(var msg, let s):
             merge(s)
+            if msg == SegmentedDownloader.htmlInsteadOfFile, downloads[i].browserFallback == "safari" {
+                // A guessed Safari link that is a web page after all: open it there and forget it.
+                if let t = downloads[i].tempPath { try? FileManager.default.removeItem(atPath: t) }
+                Self.openInSafari(downloads[i].originalURL ?? downloads[i].url)
+                downloads.remove(at: i)
+                finished(id)
+                return
+            }
             if msg == SegmentedDownloader.htmlInsteadOfFile, downloads[i].browserMime != nil {
                 // Like IDM: if we can't fetch it, let the browser download it after all.
                 let url = downloads[i].originalURL ?? downloads[i].url
@@ -392,6 +402,15 @@ final class AppModel: ObservableObject {
             downloads[i].speed = 0
             finished(id)
             notifyUser("İndirme başarısız", "\(downloads[i].fileName): \(msg)")
+        }
+    }
+
+    static func openInSafari(_ s: String) {
+        guard let url = URL(string: s) else { return }
+        if let safari = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Safari") {
+            NSWorkspace.shared.open([url], withApplicationAt: safari, configuration: NSWorkspace.OpenConfiguration())
+        } else {
+            NSWorkspace.shared.open(url)
         }
     }
 
