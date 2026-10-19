@@ -19,6 +19,22 @@
     return m ? m[1].toLowerCase() : "";
   }
 
+  // Hosts whose links are always files (Discord attachments come with ?ex=…&hm=… after the name).
+  const FILE_HOSTS = /(^|\.)(cdn\.discordapp\.com|media\.discordapp\.net|attachments\.discordapp\.net)$/i;
+  const PAGE_EXTS = new Set(["", "html", "htm", "php", "asp", "aspx", "jsp", "cgi"]);
+  const DOWNLOAD_WORDS = /download|indir|i̇ndir|herunterladen|télécharger|descargar|scarica/i;
+
+  /** The link, or a button right around it, says "download" (e.g. Discord's download icon). */
+  function saysDownload(a) {
+    let el = a;
+    for (let i = 0; el && i < 3; i++, el = el.parentElement) {
+      const text = [el.getAttribute("aria-label"), el.getAttribute("title"), el.getAttribute("data-tooltip")].join(" ");
+      if (DOWNLOAD_WORDS.test(text)) return true;
+    }
+    const own = (a.textContent || "").trim();
+    return own.length > 0 && own.length < 40 && DOWNLOAD_WORDS.test(own);
+  }
+
   function wanted(a) {
     if (!s.capture) return false;
     let u;
@@ -35,7 +51,14 @@
       /* keep as is */
     }
     const ext = extOf(a.getAttribute("download")) || extOf(last);
-    return !!ext && s.exts.split(/[\s,]+/).includes(ext);
+    if (ext && s.exts.split(/[\s,]+/).includes(ext)) return true;
+    // Any file the page itself marks as a download: a download attribute, or a "Download" button
+    // pointing at a file (not at a web page) or at a file host.
+    const isFile = !PAGE_EXTS.has(ext) || FILE_HOSTS.test(u.hostname);
+    if (!isFile) return false;
+    if (a.hasAttribute("download") || saysDownload(a)) return true;
+    // A file link on a file host (Discord's attachment name), but not an image that opens a viewer.
+    return FILE_HOSTS.test(u.hostname) && !a.querySelector("img, video");
   }
 
   document.addEventListener(
