@@ -3,6 +3,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var model: AppModel
+    @ObservedObject private var safariWatcher = SafariWatcher.shared
     @AppStorage("downloadDirectory") private var downloadDirectory: String = FileManager.default
         .urls(for: .downloadsDirectory, in: .userDomainMask)[0].path
     @AppStorage("connections") private var connections: Int = 8
@@ -25,6 +26,12 @@ struct SettingsView: View {
                 Toggle("Bitince bildirim göster", isOn: $notify)
                 Toggle("Safari'nin kendi başlattığı indirmeleri devral", isOn: $safariTakeover)
                     .help("Başka bir uygulamadan açılan linkler de dahil, Safari bir dosya indirmeye başlayınca MDM onu alır.")
+                HStack {
+                    Text("Safari izleme: " + safariWatcher.status).font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Kaydı göster") { NSWorkspace.shared.activateFileViewerSelecting([SafariWatcher.logFile]) }
+                        .controlSize(.small)
+                }
             }
             Section("Video") {
                 HStack {
