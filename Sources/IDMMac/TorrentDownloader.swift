@@ -102,7 +102,7 @@ final class TorrentService {
 final class TorrentDownloader {
     private var record: DownloadRecord
     private let onEvent: (SegmentedDownloader.Event) -> Void
-    private var timer: Timer?
+    private var generation = 0   // bumps when polling stops, so an old poll loop ends
     private var stopped = false
     private var name = ""
     private var total: Int64 = -1
@@ -191,11 +191,14 @@ final class TorrentDownloader {
     }
 
     private func watch(_ hash: String) {
-        timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.refresh(hash) }
-        }
+        generation += 1
+        poll(hash, generation)
+    }
+
+    private func poll(_ hash: String, _ gen: Int) {
+        guard gen == generation, !stopped else { return }
         refresh(hash)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.poll(hash, gen) }
     }
 
     private func refresh(_ hash: String) {
@@ -209,7 +212,7 @@ final class TorrentDownloader {
                 return self.fail(err)
             }
             if s["finished"] as? Bool == true {
-                self.timer?.invalidate()
+                self.generation += 1
                 self.stopped = true
                 let path = (self.record.directory as NSString).appendingPathComponent(self.name)
                 if FileManager.default.fileExists(atPath: path) {
@@ -236,14 +239,14 @@ final class TorrentDownloader {
     }
 
     private func fail(_ msg: String) {
-        timer?.invalidate()
+        generation += 1
         stopped = true
         onEvent(.failed(msg, snapshot(got: record.receivedBytes, peers: 0)))
     }
 
     func pause() {
         stopped = true
-        timer?.invalidate()
+        generation += 1
         if let h = record.torrentHash { TorrentService.call("POST", "/torrents/\(h)/pause") { _ in } }
     }
 
