@@ -4,7 +4,13 @@ import SwiftUI
 /// The "Torrent ara" tab: searches legal, openly licensed sources and queues the chosen torrent.
 struct TorrentSearchView: View {
     @EnvironmentObject var model: AppModel
-    @State private var query = ""
+    @State private var query: String
+    private let autoSearch: Bool
+
+    init(initialQuery: String = "") {
+        _query = State(initialValue: initialQuery)
+        autoSearch = !initialQuery.isEmpty
+    }
     @State private var source = "all"
     @State private var results: [TorrentResult] = []
     @State private var errors: [String] = []
@@ -52,6 +58,7 @@ struct TorrentSearchView: View {
             }
         }
         .padding(16)
+        .onAppear { if autoSearch { search() } }
     }
 
     private func row(_ r: TorrentResult) -> some View {

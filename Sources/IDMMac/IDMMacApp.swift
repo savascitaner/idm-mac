@@ -17,6 +17,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         AppModel.shared.boot()
+        if let i = CommandLine.arguments.firstIndex(of: "--snapshots"), i + 1 < CommandLine.arguments.count,
+           AppModel.shared.isDemo {
+            // Used by CI for the guide's screenshots: draws each window to a PNG and quits.
+            let dir = CommandLine.arguments[i + 1]
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { Snapshots.run(into: dir) }
+        }
     }
 
     /// Once the user has allowed the app ("Yine de Aç"), drop the quarantine flag from the whole bundle

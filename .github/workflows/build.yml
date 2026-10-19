@@ -57,6 +57,7 @@ jobs:
           gh release delete latest --yes --cleanup-tag || true
           FILES="dist/MDM.dmg dist/MDM.pkg"
           [ -f dist/screenshot.png ] && FILES="$FILES dist/screenshot.png"
+          [ -f dist/shots.zip ] && FILES="$FILES dist/shots.zip"
           gh release create latest $FILES --prerelease --target "$GITHUB_SHA" \
             --title "Son sürüm (${GITHUB_SHA::7})" \
             --notes "main dalından otomatik üretilen son sürüm. Kurulum için DMG içindeki BENİ OKU dosyasına bak."

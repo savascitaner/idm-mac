@@ -268,7 +268,8 @@ struct AddURLSheet: View {
 struct ExtensionHelpSheet: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.dismiss) private var dismiss
-    @State private var browser = 0
+    @State private var browser: Int
+    init(browser: Int = 0) { _browser = State(initialValue: browser) }
     @State private var safariReport = ""
 
     var body: some View {
