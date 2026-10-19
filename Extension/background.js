@@ -271,6 +271,37 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         reply({ ok: !!res && res.type === "accepted" });
         break;
       }
+      case "probe": {
+        // yt-dlp needs a few seconds (longer for YouTube), so wait well past the usual timeout.
+        const res = await send(
+          {
+            type: "probe",
+            pageUrl: msg.pageUrl,
+            mediaUrl: msg.mediaUrl && !msg.mediaUrl.startsWith("blob:") ? msg.mediaUrl : "",
+            referrer: msg.referrer || sender.tab?.url || "",
+            userAgent: navigator.userAgent,
+            cookies: await cookiesFor(msg.pageUrl, msg.mediaUrl),
+          },
+          90000
+        );
+        reply(res && res.type === "info" ? res : null);
+        break;
+      }
+      case "grab": {
+        const res = await send({
+          type: "grab",
+          pageUrl: msg.pageUrl,
+          mediaUrl: msg.mediaUrl && !msg.mediaUrl.startsWith("blob:") ? msg.mediaUrl : "",
+          title: msg.title || "",
+          option: msg.option,
+          track: msg.track || "",
+          referrer: msg.referrer || sender.tab?.url || "",
+          userAgent: navigator.userAgent,
+          cookies: await cookiesFor(msg.pageUrl, msg.mediaUrl),
+        });
+        reply({ ok: !!res && res.type === "accepted" });
+        break;
+      }
       case "url": {
         const res = await send({ type: "url", url: msg.url, userAgent: navigator.userAgent, cookies: await cookiesFor(msg.url) });
         reply({ ok: !!res && res.type === "accepted" });

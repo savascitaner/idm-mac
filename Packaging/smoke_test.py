@@ -135,6 +135,17 @@ def main():
     if not any(m.get("type") == "fallback" for m in got):
         fail("HTML response was not handed back to the browser")
 
+    # Hover menu: a "probe" is answered later with the video's choices (not with "accepted").
+    p = subprocess.Popen([str(HOST)], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    p.stdin.write(frame({"type": "probe", "id": "q1", "pageUrl": url, "mediaUrl": "", "userAgent": "Mozilla/5.0", "cookies": []}))
+    p.stdin.flush()
+    m = read_frame(p.stdout)
+    p.stdin.close()
+    p.kill()
+    print("probe reply:", json.dumps(m)[:600] if m else m)
+    if not m or m.get("type") != "info" or m.get("id") != "q1":
+        fail("hover menu probe got no answer")
+
     # Safari extension: bundled and signed, and the idmmac:// bridge it uses reaches the app.
     appex = APP / "Contents/PlugIns/IDMMacSafari.appex"
     if not (appex / "Contents/Resources/manifest.json").exists():

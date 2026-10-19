@@ -77,6 +77,10 @@ api.runtime.onMessage.addListener((msg, sender, reply) => {
         reply({ host: !!res, app: !!res?.app });
         break;
       }
+      case "probe":
+        // Safari's bridge to the app is one-way, so the hover menu can't get the quality list.
+        reply({ unsupported: true });
+        break;
       case "media":
         reply([]); // Safari doesn't let extensions watch network responses the way Chrome does.
         break;

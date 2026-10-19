@@ -46,6 +46,11 @@ final class AppModel: ObservableObject {
         refreshDisk()
         server = IPCServer(path: Paths.socket) { msg, reply in
             let id = msg["id"] as? String ?? ""
+            if msg["type"] as? String == "probe" {
+                // The hover menu waits for the real answer instead of "accepted".
+                Task { @MainActor in AppModel.shared.probeForMenu(msg, reply: reply) }
+                return
+            }
             reply(["type": "accepted", "id": id])
             Task { @MainActor in AppModel.shared.handle(msg) }
         }
@@ -120,10 +125,7 @@ final class AppModel: ObservableObject {
 
     func handle(_ msg: [String: Any]) {
         let type = msg["type"] as? String ?? ""
-        let cookies = Self.parseCookies(msg["cookies"])
-        var headers: [String: String] = [:]
-        if let ua = msg["userAgent"] as? String { headers["User-Agent"] = ua }
-        if let r = msg["referrer"] as? String, !r.isEmpty { headers["Referer"] = r }
+        let (headers, cookies) = Self.context(msg)
 
         switch type {
         case "download":
@@ -134,6 +136,17 @@ final class AppModel: ObservableObject {
             let page = msg["pageUrl"] as? String ?? ""
             let media = msg["mediaUrl"] as? String
             showVideoDialog(pageURL: page, mediaURL: media, title: msg["title"] as? String, headers: headers, cookies: cookies)
+        case "grab":
+            let page = msg["pageUrl"] as? String ?? ""
+            guard let c = menuCache[page],
+                  let option = c.info.options.first(where: { $0.label == msg["option"] as? String }) else {
+                showVideoDialog(pageURL: page, mediaURL: msg["mediaUrl"] as? String, title: msg["title"] as? String,
+                                headers: headers, cookies: cookies)
+                return
+            }
+            let track = c.info.audioTracks.first { $0.code == msg["track"] as? String }
+            addVideo(info: c.info, option: option, track: track, headers: headers, cookies: c.usedCookies ? cookies : [])
+            notifyUser("İndirme sıraya alındı", c.info.title)
         case "url":
             guard let s = msg["url"] as? String, let u = URL(string: s) else { return }
             if Self.looksLikeVideoPage(u) {
@@ -144,6 +157,58 @@ final class AppModel: ObservableObject {
         default:
             break
         }
+    }
+
+    /// The request headers and cookies the browser sent along with a message.
+    static func context(_ msg: [String: Any]) -> ([String: String], [BrowserCookie]) {
+        var headers: [String: String] = [:]
+        if let ua = msg["userAgent"] as? String { headers["User-Agent"] = ua }
+        if let r = msg["referrer"] as? String, !r.isEmpty { headers["Referer"] = r }
+        return (headers, parseCookies(msg["cookies"]))
+    }
+
+    // MARK: Hover menu on the browser's video button
+
+    /// Videos probed for the hover menu, by page URL, so picking a quality starts at once.
+    private var menuCache: [String: (info: VideoInfo, usedCookies: Bool, time: Date)] = [:]
+
+    /// Answers the extension's hover menu with the video's qualities and audio languages.
+    /// Tries the same order as the video dialog: no cookies, browser cookies, then the media URL.
+    func probeForMenu(_ msg: [String: Any], reply: @escaping IPCServer.Reply) {
+        let id = msg["id"] as? String ?? ""
+        let page = msg["pageUrl"] as? String ?? ""
+        let (headers, cookies) = Self.context(msg)
+        let answer: (VideoInfo) -> Void = { info in
+            reply(["type": "info", "id": id, "ok": true, "title": info.title,
+                   "options": info.options.map { ["label": $0.label, "detail": $0.detail] },
+                   "tracks": info.audioTracks.map { ["code": $0.code, "label": $0.label] },
+                   "track": info.defaultTrack?.code ?? ""])
+        }
+        if let c = menuCache[page], c.time.timeIntervalSinceNow > -600 { return answer(c.info) }
+        let cookieFile = YtDlp.cookieFile(for: UUID(), cookies: cookies)
+        var attempts: [(url: String, cookies: URL?)] = [(page, nil)]
+        if let c = cookieFile { attempts.append((page, c)) }
+        if let m = msg["mediaUrl"] as? String, !m.isEmpty, !m.hasPrefix("blob:"), m != page {
+            attempts.append((m, cookieFile))
+        }
+        func attempt(_ rest: ArraySlice<(url: String, cookies: URL?)>) {
+            guard let a = rest.first else {
+                if let f = cookieFile { try? FileManager.default.removeItem(at: f) }
+                reply(["type": "info", "id": id, "ok": false])
+                return
+            }
+            YtDlp.probe(url: a.url, cookieFile: a.cookies, headers: headers) { r in
+                switch r {
+                case .success(let info):
+                    if let f = cookieFile { try? FileManager.default.removeItem(at: f) }
+                    AppModel.shared.menuCache[page] = (info, a.cookies != nil, Date())
+                    answer(info)
+                case .failure:
+                    attempt(rest.dropFirst())
+                }
+            }
+        }
+        attempt(attempts[...])
     }
 
     static func parseCookies(_ any: Any?) -> [BrowserCookie] {

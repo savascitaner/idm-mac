@@ -1,4 +1,5 @@
-// Shows an IDM-style "Bu videoyu indir" button over videos the pointer is on.
+// Shows an IDM-style "Bu videoyu indir" button over videos the pointer is on; hovering it
+// lists the qualities and audio languages so a download can start without the app window.
 (() => {
   if (window.__idmMacLoaded) return;
   window.__idmMacLoaded = true;
@@ -26,10 +27,33 @@
       button.done { background: #16a34a; }
       button.err { background: #dc2626; }
       svg { width: 15px; height: 15px; fill: currentColor; }
+      .wrap { position: relative; }
+      .menu {
+        position: absolute; right: 0; top: calc(100% + 6px); min-width: 250px; max-height: 60vh; overflow-y: auto;
+        font: 13px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; color: #f4f4f5;
+        background: rgba(24, 24, 27, 0.97); border-radius: 10px; padding: 6px;
+        box-shadow: 0 8px 28px rgba(0,0,0,.5); box-sizing: border-box;
+      }
+      .menu[hidden] { display: none; }
+      .head { padding: 6px 10px 3px; color: #a1a1aa; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+      .item { display: flex; justify-content: space-between; gap: 18px; padding: 7px 10px; border-radius: 6px; cursor: pointer; }
+      .item:hover { background: #2563eb; }
+      .item .d { color: #a1a1aa; }
+      .item:hover .d { color: #dbeafe; }
+      .note { padding: 8px 10px; color: #a1a1aa; }
+      select {
+        margin: 2px 10px 6px; width: calc(100% - 20px); font: 13px -apple-system, sans-serif; color: #f4f4f5;
+        background: #3f3f46; border: 0; border-radius: 6px; padding: 5px 6px;
+      }
     </style>
-    <button type="button"><svg viewBox="0 0 24 24"><path d="M11 3h2v10.17l3.59-3.58L18 11l-6 6-6-6 1.41-1.41L11 13.17zM5 19h14v2H5z"/></svg><span>Bu videoyu indir</span></button>`;
+    <div class="wrap">
+      <button type="button"><svg viewBox="0 0 24 24"><path d="M11 3h2v10.17l3.59-3.58L18 11l-6 6-6-6 1.41-1.41L11 13.17zM5 19h14v2H5z"/></svg><span>Bu videoyu indir</span></button>
+      <div class="menu" hidden></div>
+    </div>`;
   const btn = root.querySelector("button");
   const label = root.querySelector("span");
+  const wrap = root.querySelector(".wrap");
+  const menu = root.querySelector(".menu");
 
   let current = null;
   let hideTimer = null;
@@ -42,6 +66,7 @@
   function hide() {
     host.style.display = "none";
     current = null;
+    closeMenu();
   }
 
   function place(v) {
@@ -76,12 +101,15 @@
         const v = videoAt(e.clientX, e.clientY);
         if (v) {
           clearTimeout(hideTimer);
-          if (v !== current && !busy) resetLabel();
+          if (v !== current && !busy) {
+            resetLabel();
+            closeMenu();
+          }
           current = v;
           place(v);
         } else if (current && !busy) {
           clearTimeout(hideTimer);
-          hideTimer = setTimeout(hide, 1200);
+          hideTimer = setTimeout(() => menuInUse() || hide(), 1200);
         }
       });
     },
@@ -121,10 +149,127 @@
     return location.href;
   }
 
+  // ---------- Hover menu: pick quality and audio language without opening the app window ----------
+
+  const infos = new Map(); // page URL -> answer from the app (qualities, audio tracks)
+  let menuPage = null;
+  let openTimer = 0;
+  let closeTimer = 0;
+  let unsupported = false; // Safari can't get answers back from the app
+
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+
+  // The language list's native popup takes the pointer off the page; don't close under it.
+  function menuInUse() {
+    return !menu.hidden && menu.contains(root.activeElement);
+  }
+
+  function closeMenu() {
+    clearTimeout(openTimer);
+    menu.hidden = true;
+    menuPage = null;
+  }
+
+  function note(text) {
+    menu.replaceChildren(el("div", "note", text));
+  }
+
+  function render(info, v) {
+    menu.replaceChildren();
+    let select = null;
+    if (info.tracks && info.tracks.length > 1) {
+      menu.append(el("div", "head", "Ses dili (dublaj)"));
+      select = el("select");
+      for (const t of info.tracks) {
+        const o = el("option", null, t.label);
+        o.value = t.code;
+        o.selected = t.code === info.track;
+        select.append(o);
+      }
+      select.addEventListener("click", (e) => e.stopPropagation());
+      select.addEventListener("change", () => select.blur());
+      menu.append(select);
+    }
+    menu.append(el("div", "head", "Kalite"));
+    for (const opt of info.options || []) {
+      const row = el("div", "item");
+      row.append(el("span", null, opt.label), el("span", "d", opt.detail));
+      row.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        grab(v, opt.label, select ? select.value : "");
+      });
+      menu.append(row);
+    }
+  }
+
+  function openMenu() {
+    if (!current || busy || unsupported) return;
+    const v = current;
+    const page = pageUrlFor(v);
+    if (menuPage === page && !menu.hidden) return;
+    menuPage = page;
+    menu.hidden = false;
+    const known = infos.get(page);
+    if (known) return render(known, v);
+    note("Kaliteler alınıyor…");
+    const src = v.currentSrc || v.src || "";
+    chrome.runtime.sendMessage(
+      { type: "probe", pageUrl: page, mediaUrl: src, referrer: window === top ? "" : document.referrer },
+      (res) => {
+        void chrome.runtime.lastError;
+        if (res && res.unsupported) {
+          unsupported = true;
+          return closeMenu();
+        }
+        if (res && res.ok && res.options && res.options.length) infos.set(page, res);
+        if (menuPage !== page || menu.hidden) return;
+        if (infos.has(page)) render(res, v);
+        else note("Seçenekler alınamadı. Butona tıklayıp uygulamada seçebilirsin.");
+      }
+    );
+  }
+
+  function grab(v, option, track) {
+    const page = pageUrlFor(v);
+    closeMenu();
+    busy = true;
+    label.textContent = "Gönderiliyor…";
+    const src = v.currentSrc || v.src || "";
+    chrome.runtime.sendMessage(
+      { type: "grab", pageUrl: page, mediaUrl: src, title: document.title, option, track,
+        referrer: window === top ? "" : document.referrer },
+      (res) => {
+        void chrome.runtime.lastError;
+        busy = false;
+        btn.className = res && res.ok ? "done" : "err";
+        label.textContent = res && res.ok ? "İndirme başladı" : "Uygulama açılamadı";
+        setTimeout(resetLabel, 3000);
+      }
+    );
+  }
+
+  wrap.addEventListener("mouseenter", () => {
+    clearTimeout(closeTimer);
+    clearTimeout(openTimer);
+    openTimer = setTimeout(openMenu, 250);
+  });
+  wrap.addEventListener("mouseleave", () => {
+    clearTimeout(openTimer);
+    clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => menuInUse() || closeMenu(), 450);
+  });
+
   btn.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
     if (!current || busy) return;
+    closeMenu();
     busy = true;
     label.textContent = "Gönderiliyor…";
     const src = current.currentSrc || current.src || "";
