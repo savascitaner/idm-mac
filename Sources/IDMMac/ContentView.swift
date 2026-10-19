@@ -38,6 +38,12 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showAdd) { AddURLSheet() }
         .sheet(isPresented: $showExtensionHelp) { ExtensionHelpSheet() }
+        .onAppear {
+            // First launch: walk through the browser setup once, without being asked.
+            guard !model.isDemo, !UserDefaults.standard.bool(forKey: "setupShown") else { return }
+            UserDefaults.standard.set(true, forKey: "setupShown")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { showExtensionHelp = true }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .showAddURL)) { _ in showAdd = true }
         .onDeleteCommand { selection.forEach { model.remove($0) } }
         .onReceive(model.$downloads) { list in
@@ -300,16 +306,35 @@ struct ExtensionHelpSheet: View {
         }
     }
 
+    private func openChromeExtensions() {
+        _ = HostInstaller.exportExtension()
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(Paths.extensionDir.path, forType: .string)
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        p.arguments = ["-a", "Google Chrome", "chrome://extensions"]
+        try? p.run()
+    }
+
     private var chrome: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Chrome eklentisini kur").font(.title3.bold())
+            Label(model.chromeConnected ? "Eklenti bağlı, kurulum tamam" : "Eklenti henüz bağlanmadı",
+                  systemImage: model.chromeConnected ? "checkmark.circle.fill" : "circle.dashed")
+                .foregroundStyle(model.chromeConnected ? .green : .orange)
+            Button {
+                openChromeExtensions()
+            } label: {
+                Label("Chrome'u eklenti sayfasında aç ve klasör yolunu kopyala", systemImage: "wand.and.stars")
+            }
+            .buttonStyle(.borderedProminent)
             VStack(alignment: .leading, spacing: 8) {
-                Text("1. Chrome'da adres çubuğuna **chrome://extensions** yaz ve aç.")
-                Text("2. Sağ üstteki **Geliştirici modu** anahtarını aç.")
-                Text("3. **Paketlenmemiş öğe yükle** düğmesine bas. Açılan pencerede **Cmd + Shift + G** tuşlarına bas, aşağıdaki yolu yapıştır (\"Yolu kopyala\") ve **Seç**'e bas.")
-                Text("Not: Yolu Chrome'un adres çubuğuna yapıştırmak eklentiyi yüklemez, sadece klasörü listeler.")
+                Text("Yukarıdaki düğme Chrome'u **chrome://extensions** sayfasında açtı ve klasör yolunu panoya kopyaladı. Geriye üç tıklama kaldı:")
+                Text("1. Sağ üstteki **Geliştirici modu** anahtarını aç.")
+                Text("2. **Paketlenmemiş öğe yükle**'ye bas, açılan pencerede **Cmd + Shift + G**, **Cmd + V**, **Enter**, sonra **Seç**.")
+                Text("3. İsteğe bağlı: eklentinin simgesini araç çubuğuna sabitle.")
+                Text("Chrome mağaza dışı eklentilerin kendiliğinden kurulmasına izin vermediği için bu adım bir kez elle yapılır; sonraki güncellemeleri eklenti kendi yapar.")
                     .font(.caption).foregroundStyle(.secondary)
-                Text("4. Eklentinin simgesini araç çubuğuna sabitle. Hepsi bu.")
             }
             HStack {
                 Text(Paths.extensionDir.path).font(.caption.monospaced()).textSelection(.enabled).lineLimit(1).truncationMode(.middle)

@@ -1,5 +1,9 @@
 MDM - Mac Download Manager kurulumu
 
+Kolay yol: bu pencere yerine indirdiğin "MDM.pkg" dosyasına çift tıkla. Kurulum sihirbazı MDM'yi
+Applications'a kendisi koyar ve açar (macOS ilk seferde "Yine de Aç" isteyebilir: Sistem Ayarları >
+Gizlilik ve Güvenlik). Sonra 3. adıma geç. DMG ile kuruyorsan aşağıdakileri izle.
+
 1) "MDM" simgesini Applications klasörüne sürükle.
    Eski "IDM Mac" uygulaması Applications'ta duruyorsa onu çöp kutusuna at
    (indirme listen ve ayarların korunur).

@@ -11,6 +11,13 @@ final class IPCServer {
     private let clientsLock = NSLock()
     private var clients: [Int32: Reply] = [:]
 
+    /// How many browser hosts are connected (a host only runs while its Chrome extension is alive).
+    var clientCount: Int {
+        clientsLock.lock()
+        defer { clientsLock.unlock() }
+        return clients.count
+    }
+
     /// Sends a message to every connected browser host. Returns false if none is connected.
     @discardableResult
     func broadcast(_ obj: [String: Any]) -> Bool {

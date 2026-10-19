@@ -12,6 +12,8 @@ final class AppModel: ObservableObject {
     @Published var speedHistory: [Double] = Array(repeating: 0, count: 60)
     /// Speed samples per download (one per second), for the detail panel.
     @Published var speedSeries: [UUID: [Double]] = [:]
+    /// True while the Chrome extension is connected (it reconnects within moments of Chrome starting).
+    @Published var chromeConnected = false
     @Published var diskFree: Int64 = 0
     @Published var diskTotal: Int64 = 0
 
@@ -103,6 +105,8 @@ final class AppModel: ObservableObject {
         updateDock()
         checkSchedule()
         applySpeedLimit()
+        let connected = (server?.clientCount ?? 0) > 0
+        if connected != chromeConnected { chromeConnected = connected }
         ticks += 1
         if ticks % 10 == 0 { refreshDisk() }
     }

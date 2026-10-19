@@ -97,4 +97,25 @@ cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
 cp Packaging/BENIOKU.txt "$STAGE/BENİ OKU.txt"
 hdiutil create -volname "MDM" -srcfolder "$STAGE" -ov -format UDZO "dist/MDM.dmg"
+echo "==> PKG (double-click installer: puts MDM in Applications, no drag and no second \"Open Anyway\")"
+PKGROOT="$TMP/pkgroot"
+mkdir -p "$PKGROOT/Applications" "$TMP/pkgscripts"
+cp -R "$APP" "$PKGROOT/Applications/"
+cat > "$TMP/pkgscripts/postinstall" <<'EOS'
+#!/bin/sh
+# Files the installer writes carry no quarantine flag; make sure of it, then open MDM for the person who installed it.
+/usr/bin/xattr -dr com.apple.quarantine /Applications/MDM.app 2>/dev/null
+U="$(/usr/bin/stat -f%Su /dev/console)"
+if [ -n "$U" ] && [ "$U" != "root" ]; then
+  /bin/launchctl asuser "$(/usr/bin/id -u "$U")" /usr/bin/sudo -u "$U" /usr/bin/open /Applications/MDM.app || true
+fi
+exit 0
+EOS
+chmod +x "$TMP/pkgscripts/postinstall"
+pkgbuild --analyze --root "$PKGROOT" "$TMP/components.plist" >/dev/null
+plutil -replace 0.BundleIsRelocatable -bool false "$TMP/components.plist"
+pkgbuild --root "$PKGROOT" --component-plist "$TMP/components.plist" --scripts "$TMP/pkgscripts" \
+  --identifier com.savascitaner.idmmac.pkg --version "$VERSION" --install-location / "dist/MDM.pkg"
+pkgutil --payload-files dist/MDM.pkg | grep -q "Applications/MDM.app/Contents/MacOS/IDMMac"
+echo "==> dist/MDM.pkg"
 echo "==> dist/MDM.dmg"
