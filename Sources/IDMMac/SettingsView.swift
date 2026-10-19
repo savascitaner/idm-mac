@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @EnvironmentObject var model: AppModel
@@ -26,6 +27,12 @@ struct SettingsView: View {
                 Toggle("Bitince bildirim göster", isOn: $notify)
                 Toggle("Safari'nin kendi başlattığı indirmeleri devral", isOn: $safariTakeover)
                     .help("Başka bir uygulamadan açılan linkler de dahil, Safari bir dosya indirmeye başlayınca MDM onu alır.")
+                HStack {
+                    Text("Magnet linkleri ve .torrent dosyaları").font(.callout)
+                    Spacer()
+                    Button("MDM ile açılsın") { Self.claimTorrentLinks() }
+                        .help("Başka bir uygulamada ya da tarayıcıda tıklanan magnet linklerini MDM açar.")
+                }
                 HStack {
                     Text("Safari izleme: " + safariWatcher.status).font(.caption).foregroundStyle(.secondary)
                     Spacer()
@@ -58,5 +65,14 @@ struct SettingsView: View {
         p.canCreateDirectories = true
         p.directoryURL = URL(fileURLWithPath: downloadDirectory)
         if p.runModal() == .OK, let u = p.url { downloadDirectory = u.path }
+    }
+
+    /// Makes MDM the app that opens magnet: links and .torrent files.
+    static func claimTorrentLinks() {
+        let app = Bundle.main.bundleURL
+        NSWorkspace.shared.setDefaultApplication(at: app, toOpenURLsWithScheme: "magnet") { _ in }
+        if let t = UTType(filenameExtension: "torrent") {
+            NSWorkspace.shared.setDefaultApplication(at: app, toOpen: t) { _ in }
+        }
     }
 }

@@ -29,77 +29,11 @@ struct ContentView: View {
             Sidebar(selection: $sidebar)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
         } detail: {
-            VStack(spacing: 0) {
-                DashboardHeader()
-                Divider()
-                HStack(spacing: 0) {
-                    Group {
-                        if model.downloads.isEmpty {
-                            EmptyState(showExtensionHelp: $showExtensionHelp)
-                        } else if filtered.isEmpty {
-                            Text(query.isEmpty ? "Bu bölümde indirme yok" : "Aramayla eşleşen indirme yok").foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        } else {
-                            List(selection: $selection) {
-                                ForEach(filtered) { d in
-                                    DownloadRow(record: d).tag(d.id)
-                                }
-                            }
-                            .listStyle(.inset(alternatesRowBackgrounds: true))
-                            // A tap gesture on the rows would swallow the clicks that select them,
-                            // so double-click and the context menu go through the list itself.
-                            .contextMenu(forSelectionType: UUID.self) { ids in
-                                if ids.count == 1, let id = ids.first, let d = model.downloads.first(where: { $0.id == id }) {
-                                    rowMenu(d)
-                                }
-                            } primaryAction: { ids in
-                                for id in ids {
-                                    if let d = model.downloads.first(where: { $0.id == id }), d.state == .completed { model.open(d) }
-                                }
-                            }
-                            .animation(.default, value: filtered.map(\.id))
-                        }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if showInspector {
-                        Divider()
-                        if let rec = selectedRecord {
-                            DownloadInspector(record: rec)
-                        } else {
-                            VStack(spacing: 8) {
-                                Image(systemName: "sidebar.right").font(.system(size: 30)).foregroundStyle(.tertiary)
-                                Text("Ayrıntıları görmek için bir indirme seç").font(.callout).foregroundStyle(.secondary)
-                                    .multilineTextAlignment(.center)
-                            }
-                            .padding()
-                            .frame(width: 330)
-                            .frame(maxHeight: .infinity)
-                        }
-                    }
-                }
-                Divider()
-                HStack {
-                    Text(model.activeCount > 0 ? "\(model.activeCount) etkin indirme · \(Format.speed(model.totalSpeed))" : "Hazır")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Spacer()
-                    if model.browsersLinked.isEmpty {
-                        Text("Chrome bulunamadı").font(.caption).foregroundStyle(.orange)
-                    }
-                }
-                .padding(.horizontal, 12).padding(.vertical, 6)
-            }
-            .navigationTitle((sidebar ?? .all).title)
-            .searchable(text: $query, placement: .toolbar, prompt: "İndirmelerde ara")
-            .toolbar {
-                ToolbarItemGroup {
-                    Button { showAdd = true } label: { Label("Adres ekle", systemImage: "plus") }
-                    Button { model.resumeAll() } label: { Label("Tümünü sürdür", systemImage: "play.fill") }
-                    Button { model.pauseAll() } label: { Label("Tümünü duraklat", systemImage: "pause.fill") }
-                    Button { model.clearCompleted() } label: { Label("Bitenleri temizle", systemImage: "checkmark.circle") }
-                    Button { showExtensionHelp = true } label: { Label("Tarayıcı eklentisi", systemImage: "puzzlepiece.extension") }
-                    Button { showInspector.toggle() } label: { Label("Ayrıntı paneli", systemImage: "sidebar.right") }
-                        .help("Ayrıntı panelini aç/kapat")
-                }
+            if sidebar == .search {
+                TorrentSearchView()
+                    .navigationTitle("Torrent ara")
+            } else {
+                downloadsPane
             }
         }
         .sheet(isPresented: $showAdd) { AddURLSheet() }
@@ -108,6 +42,82 @@ struct ContentView: View {
         .onDeleteCommand { selection.forEach { model.remove($0) } }
         .onReceive(model.$downloads) { list in
             if model.isDemo, selection.isEmpty, let first = list.first { selection = [first.id] }
+        }
+    }
+
+    /// The download list with the dashboard, inspector and toolbar.
+    private var downloadsPane: some View {
+        VStack(spacing: 0) {
+            DashboardHeader()
+            Divider()
+            HStack(spacing: 0) {
+                Group {
+                    if model.downloads.isEmpty {
+                        EmptyState(showExtensionHelp: $showExtensionHelp)
+                    } else if filtered.isEmpty {
+                        Text(query.isEmpty ? "Bu bölümde indirme yok" : "Aramayla eşleşen indirme yok").foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        List(selection: $selection) {
+                            ForEach(filtered) { d in
+                                DownloadRow(record: d).tag(d.id)
+                            }
+                        }
+                        .listStyle(.inset(alternatesRowBackgrounds: true))
+                        // A tap gesture on the rows would swallow the clicks that select them,
+                        // so double-click and the context menu go through the list itself.
+                        .contextMenu(forSelectionType: UUID.self) { ids in
+                            if ids.count == 1, let id = ids.first, let d = model.downloads.first(where: { $0.id == id }) {
+                                rowMenu(d)
+                            }
+                        } primaryAction: { ids in
+                            for id in ids {
+                                if let d = model.downloads.first(where: { $0.id == id }), d.state == .completed { model.open(d) }
+                            }
+                        }
+                        .animation(.default, value: filtered.map(\.id))
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if showInspector {
+                    Divider()
+                    if let rec = selectedRecord {
+                        DownloadInspector(record: rec)
+                    } else {
+                        VStack(spacing: 8) {
+                            Image(systemName: "sidebar.right").font(.system(size: 30)).foregroundStyle(.tertiary)
+                            Text("Ayrıntıları görmek için bir indirme seç").font(.callout).foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding()
+                        .frame(width: 330)
+                        .frame(maxHeight: .infinity)
+                    }
+                }
+            }
+            Divider()
+            HStack {
+                Text(model.activeCount > 0 ? "\(model.activeCount) etkin indirme · \(Format.speed(model.totalSpeed))" : "Hazır")
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                if model.browsersLinked.isEmpty {
+                    Text("Chrome bulunamadı").font(.caption).foregroundStyle(.orange)
+                }
+            }
+            .padding(.horizontal, 12).padding(.vertical, 6)
+        }
+        .navigationTitle((sidebar ?? .all).title)
+        .searchable(text: $query, placement: .toolbar, prompt: "İndirmelerde ara")
+        .toolbar {
+            ToolbarItemGroup {
+                Button { showAdd = true } label: { Label("Adres ekle", systemImage: "plus") }
+                Button { model.resumeAll() } label: { Label("Tümünü sürdür", systemImage: "play.fill") }
+                Button { model.pauseAll() } label: { Label("Tümünü duraklat", systemImage: "pause.fill") }
+                Button { model.clearCompleted() } label: { Label("Bitenleri temizle", systemImage: "checkmark.circle") }
+                Button { showExtensionHelp = true } label: { Label("Tarayıcı eklentisi", systemImage: "puzzlepiece.extension") }
+                Button { showInspector.toggle() } label: { Label("Ayrıntı paneli", systemImage: "sidebar.right") }
+                    .help("Ayrıntı panelini aç/kapat")
+            }
         }
     }
 
@@ -178,7 +188,7 @@ struct DownloadRow: View {
             if !sp.isEmpty { parts.append(sp) }
             let eta = Format.eta(remaining: record.totalBytes - record.receivedBytes, speed: record.speed)
             if !eta.isEmpty { parts.append("kalan \(eta)") }
-            if record.connections > 1 { parts.append("\(record.connections) bağlantı") }
+            if record.connections > 1 { parts.append(record.kind == .torrent ? "\(record.connections) eş" : "\(record.connections) bağlantı") }
             return parts.joined(separator: " · ")
         case .paused: return "Duraklatıldı · \(Format.bytes(record.receivedBytes)) / \(Format.bytes(record.totalBytes))"
         case .completed: return "Tamamlandı · \(Format.bytes(record.totalBytes))"
@@ -229,7 +239,7 @@ struct AddURLSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("İndirilecek adres").font(.headline)
             TextField("https://…", text: $text).textFieldStyle(.roundedBorder).frame(width: 460)
-            Text("YouTube, Vimeo, X gibi video sayfaları için kalite seçimi açılır.").font(.caption).foregroundStyle(.secondary)
+            Text("YouTube, Vimeo, X gibi video sayfaları için kalite seçimi açılır. Magnet linki ve .torrent adresi de olur.").font(.caption).foregroundStyle(.secondary)
             HStack {
                 Spacer()
                 Button("Vazgeç") { dismiss() }.keyboardShortcut(.cancelAction)
@@ -243,7 +253,7 @@ struct AddURLSheet: View {
         }
         .padding(20)
         .onAppear {
-            if let s = NSPasteboard.general.string(forType: .string), s.hasPrefix("http") { text = s }
+            if let s = NSPasteboard.general.string(forType: .string), s.hasPrefix("http") || s.hasPrefix("magnet:") { text = s }
         }
     }
 }

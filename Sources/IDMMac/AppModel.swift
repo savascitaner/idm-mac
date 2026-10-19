@@ -26,6 +26,7 @@ final class AppModel: ObservableObject {
 
     private var fileEngines: [UUID: SegmentedDownloader] = [:]
     private var videoEngines: [UUID: VideoDownloader] = [:]
+    private var torrentEngines: [UUID: TorrentDownloader] = [:]
     private var lastBytes: [UUID: (Int64, Date)] = [:]
     private var server: IPCServer?
     private var sleepActivity: NSObjectProtocol?
@@ -152,8 +153,15 @@ final class AppModel: ObservableObject {
             let track = c.info.audioTracks.first { $0.code == msg["track"] as? String }
             addVideo(info: c.info, option: option, track: track, headers: headers, cookies: c.usedCookies ? cookies : [])
             notifyUser("İndirme sıraya alındı", c.info.title)
+        case "torrent":
+            if let s = msg["url"] as? String { addTorrent(s) }
         case "url":
             guard let s = msg["url"] as? String, let u = URL(string: s) else { return }
+            if TorrentDownloader.isTorrent(url: s) {
+                var h = headers
+                if !cookies.isEmpty { h["Cookie"] = Self.cookieHeader(cookies) }
+                return addTorrent(s, headers: h, pageURL: headers["Referer"])
+            }
             if Self.looksLikeVideoPage(u) {
                 showVideoDialog(pageURL: s, mediaURL: nil, title: nil, headers: headers, cookies: cookies)
             } else {
@@ -240,6 +248,9 @@ final class AppModel: ObservableObject {
                  browserMime: String? = nil, originalURL: String? = nil, fallback: String? = nil) {
         var h = headers
         if !cookies.isEmpty { h["Cookie"] = Self.cookieHeader(cookies) }
+        if TorrentDownloader.isTorrent(url: url, fileName: fileName, mime: browserMime) {
+            return addTorrent(url, name: (fileName as NSString).deletingPathExtension, headers: h, pageURL: headers["Referer"])
+        }
         var name = FileMeta.sanitize(URL(fileURLWithPath: fileName).lastPathComponent)
         if fileName.isEmpty { name = "" }
         var rec = DownloadRecord(kind: .file, url: url, pageURL: headers["Referer"], fileName: name,
@@ -249,6 +260,25 @@ final class AppModel: ObservableObject {
         rec.browserFallback = fallback.flatMap { $0.isEmpty ? nil : $0 }
         downloads.insert(rec, at: 0)
         notifyUser("İndirme başladı", name.isEmpty ? url : name)
+        pump()
+    }
+
+    /// A magnet link, a .torrent URL or a local .torrent file; rqbit downloads it.
+    func addTorrent(_ source: String, name: String = "", headers: [String: String] = [:], pageURL: String? = nil) {
+        if let existing = downloads.first(where: { $0.kind == .torrent && $0.url == source && $0.state != .completed }) {
+            if existing.state == .paused || existing.state == .failed { resume(existing.id) }
+            return
+        }
+        var title = name
+        if title.isEmpty, let c = URLComponents(string: source), let dn = c.queryItems?.first(where: { $0.name == "dn" })?.value {
+            title = dn
+        }
+        if title.isEmpty { title = "Torrent" }
+        var rec = DownloadRecord(kind: .torrent, url: source, pageURL: pageURL, fileName: FileMeta.sanitize(title),
+                                 directory: downloadDirectory, headers: headers)
+        rec.connections = 0
+        downloads.insert(rec, at: 0)
+        notifyUser("Torrent eklendi", rec.fileName)
         pump()
     }
 
@@ -295,6 +325,7 @@ final class AppModel: ObservableObject {
 
     func addFromUserInput(_ text: String) {
         let s = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if s.lowercased().hasPrefix("magnet:") { return addTorrent(s) }
         guard let u = URL(string: s), let scheme = u.scheme?.lowercased(), ["http", "https"].contains(scheme) else { return }
         if Self.looksLikeVideoPage(u) {
             showVideoDialog(pageURL: s, mediaURL: nil, title: nil, headers: [:], cookies: [])
@@ -345,6 +376,10 @@ final class AppModel: ObservableObject {
             let e = VideoDownloader(record: rec, onEvent: handler)
             videoEngines[id] = e
             e.start()
+        case .torrent:
+            let e = TorrentDownloader(record: rec, onEvent: handler)
+            torrentEngines[id] = e
+            e.start()
         }
     }
 
@@ -354,6 +389,8 @@ final class AppModel: ObservableObject {
             downloads[i].totalBytes = s.totalBytes
             downloads[i].receivedBytes = s.receivedBytes
             downloads[i].connections = s.connections
+            if let h = s.torrentHash { downloads[i].torrentHash = h }
+            if downloads[i].kind == .torrent, !s.fileName.isEmpty { downloads[i].fileName = s.fileName }
             if downloads[i].kind == .file {
                 downloads[i].segments = s.segments
                 downloads[i].tempPath = s.tempPath
@@ -424,6 +461,7 @@ final class AppModel: ObservableObject {
     private func finished(_ id: UUID) {
         fileEngines[id] = nil
         videoEngines[id] = nil
+        torrentEngines[id] = nil
         lastBytes[id] = nil
         save()
         pump()
@@ -435,8 +473,10 @@ final class AppModel: ObservableObject {
         guard let i = downloads.firstIndex(where: { $0.id == id }), downloads[i].isActive else { return }
         fileEngines[id]?.pause()
         videoEngines[id]?.pause()
+        torrentEngines[id]?.pause()
         fileEngines[id] = nil
         videoEngines[id] = nil
+        torrentEngines[id] = nil
         lastBytes[id] = nil
         downloads[i].state = .paused
         downloads[i].speed = 0
@@ -461,6 +501,7 @@ final class AppModel: ObservableObject {
         guard let i = downloads.firstIndex(where: { $0.id == id }) else { return }
         let rec = downloads[i]
         if let t = rec.tempPath, rec.state != .completed { try? FileManager.default.removeItem(atPath: t) }
+        if let h = rec.torrentHash, rec.state != .completed { TorrentDownloader.forget(h, deleteFiles: true) }
         if deleteFile, let f = rec.finalPath { try? FileManager.default.trashItem(at: URL(fileURLWithPath: f), resultingItemURL: nil) }
         downloads.remove(at: i)
         speedSeries[id] = nil

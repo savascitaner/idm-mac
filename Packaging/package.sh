@@ -62,6 +62,12 @@ for tool in ffmpeg ffprobe; do
   fi
 done
 
+echo "==> rqbit (BitTorrent engine, Apache-2.0)"
+curl -fsSL --retry 3 -o "$TMP/rqbit" https://github.com/ikatson/rqbit/releases/latest/download/rqbit-osx-universal
+lipo "$TMP/rqbit" -thin arm64 -output "$APP/Contents/Resources/bin/rqbit" 2>/dev/null || cp "$TMP/rqbit" "$APP/Contents/Resources/bin/rqbit"
+chmod +x "$APP/Contents/Resources/bin/rqbit"
+"$APP/Contents/Resources/bin/rqbit" --version
+
 echo "==> deno (JavaScript runtime yt-dlp needs for YouTube)"
 curl -fsSL --retry 3 -o "$TMP/deno.zip" \
   https://github.com/denoland/deno/releases/latest/download/deno-aarch64-apple-darwin.zip

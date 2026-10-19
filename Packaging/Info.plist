@@ -22,7 +22,24 @@
             <key>CFBundleURLName</key><string>com.savascitaner.idmmac.bridge</string>
             <key>CFBundleURLSchemes</key><array><string>idmmac</string></array>
         </dict>
+        <dict>
+            <key>CFBundleURLName</key><string>com.savascitaner.idmmac.magnet</string>
+            <key>CFBundleURLSchemes</key><array><string>magnet</string></array>
+        </dict>
     </array>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key><string>BitTorrent</string>
+            <key>CFBundleTypeExtensions</key><array><string>torrent</string></array>
+            <key>CFBundleTypeRole</key><string>Viewer</string>
+            <key>LSHandlerRank</key><string>Alternate</string>
+        </dict>
+    </array>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key><true/>
+    </dict>
     <key>NSSupportsAutomaticTermination</key><false/>
     <key>NSSupportsSuddenTermination</key><false/>
 </dict>

@@ -5,6 +5,17 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         Self.clearQuarantine()
+        if let i = CommandLine.arguments.firstIndex(of: "--search-test"), i + 1 < CommandLine.arguments.count {
+            // Used by the CI smoke test: run the torrent search once, print what came back, quit.
+            let q = CommandLine.arguments[i + 1]
+            Task {
+                let (found, errors) = await TorrentSearch.run(q, in: TorrentSearch.sources)
+                for r in found.prefix(40) { print("RESULT\t\(r.source)\t\(r.title)\t\(r.link)") }
+                for e in errors { print("ERROR\t\(e)") }
+                exit(found.isEmpty ? 1 : 0)
+            }
+            return
+        }
         AppModel.shared.boot()
     }
 
@@ -23,13 +34,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// idmmac:// links come from the Safari extension.
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
-            if let msg = SafariBridge.message(from: url) { AppModel.shared.receive(msg) }
+            if let msg = SafariBridge.message(from: url) {
+                AppModel.shared.receive(msg)
+            } else if url.scheme?.lowercased() == "magnet" {
+                AppModel.shared.receive(["type": "torrent", "url": url.absoluteString])
+            } else if url.isFileURL, url.pathExtension.lowercased() == "torrent" {
+                AppModel.shared.receive(["type": "torrent", "url": url.path])
+            }
         }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         AppModel.shared.pauseAll()
         AppModel.shared.save()
+        TorrentService.shared.stop()
     }
 
     // Keep running in the menu bar when the window is closed, like IDM in the tray.

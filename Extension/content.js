@@ -4,6 +4,24 @@
   if (window.__idmMacLoaded) return;
   window.__idmMacLoaded = true;
 
+  // Magnet links go to MDM's torrent engine instead of whatever app the system would open.
+  document.addEventListener(
+    "click",
+    (e) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = e.composedPath().find((el) => el.tagName === "A" && el.href);
+      if (!a || !/^magnet:/i.test(a.href)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const href = a.href;
+      chrome.runtime.sendMessage({ type: "url", url: href }, (res) => {
+        void chrome.runtime.lastError;
+        if (!res || !res.ok) location.href = href;
+      });
+    },
+    true
+  );
+
   let enabled = true;
   chrome.storage.local.get({ videoButton: true }, (s) => (enabled = s.videoButton));
   chrome.storage.onChanged.addListener((c) => {

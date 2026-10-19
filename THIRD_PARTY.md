@@ -8,3 +8,4 @@ MDM uygulama paketi aşağıdaki açık kaynak programları içerir. Bunlar ayr�
 | yt-dlp | Unlicense | https://github.com/yt-dlp/yt-dlp |
 | FFmpeg / FFprobe (martin-riedl.de derlemesi) | GPL / LGPL | https://ffmpeg.org, https://ffmpeg.martin-riedl.de |
 | Deno | MIT | https://github.com/denoland/deno |
+| rqbit (BitTorrent) | Apache-2.0 | https://github.com/ikatson/rqbit |

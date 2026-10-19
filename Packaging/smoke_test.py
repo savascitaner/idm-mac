@@ -59,7 +59,60 @@ def fail(msg):
     sys.exit(1)
 
 
+def search_test():
+    """The torrent search tab's sources, run by the app itself (--search-test)."""
+    exe = APP / "Contents/MacOS/IDMMac"
+    for q in ["ubuntu", "night of the living dead"]:
+        try:
+            out = subprocess.run([str(exe), "--search-test", q], capture_output=True, text=True, timeout=150)
+        except subprocess.TimeoutExpired:
+            fail(f"torrent search '{q}' hung")
+        lines = out.stdout.splitlines()
+        print(f"search '{q}': exit={out.returncode}, {sum(l.startswith('RESULT') for l in lines)} results")
+        for l in lines[:6] + [l for l in lines if l.startswith("ERROR")]:
+            print("   ", l[:200])
+        sources = {l.split("\t")[1] for l in lines if l.startswith("RESULT")}
+        print("    sources:", sources)
+        if out.returncode != 0:
+            fail(f"torrent search '{q}' found nothing")
+
+
+def torrent_test():
+    """A Debian netinst torrent through the native host: rqbit must add it and start downloading."""
+    import re
+    import urllib.request
+    base = "https://cdimage.debian.org/debian-cd/current/amd64/bt-cd/"
+    html = urllib.request.urlopen(base, timeout=30).read().decode()
+    names = re.findall(r'href="([^"]*netinst\.iso\.torrent)"', html)
+    if not names:
+        fail("no Debian netinst torrent found")
+    turl = base + names[0]
+    print("torrent:", turl)
+    print("torrent reply:", talk([{"type": "url", "id": "t1", "url": turl, "userAgent": "Mozilla/5.0", "cookies": []}]))
+    deadline = time.time() + 150
+    rec = None
+    while time.time() < deadline:
+        time.sleep(4)
+        try:
+            rec = next((d for d in json.loads(DB.read_text()) if d.get("kind") == "torrent"), None)
+        except (ValueError, OSError):
+            continue
+        if rec:
+            print(f"  torrent state={rec['state']} {rec['receivedBytes']}/{rec['totalBytes']} peers={rec.get('connections')} "
+                  f"hash={rec.get('torrentHash')} err={rec.get('error')}")
+            if rec["state"] == "failed" or (rec.get("torrentHash") and rec["receivedBytes"] > 0):
+                break
+    log = SUPPORT / "rqbit.log"
+    if log.exists():
+        print("rqbit.log tail:", log.read_text()[-1500:])
+    if not rec or rec["state"] == "failed" or not rec.get("torrentHash"):
+        fail("torrent was not added to rqbit")
+    if rec["receivedBytes"] <= 0:
+        print("WARNING: no torrent data arrived in time (peers may be unreachable from CI)")
+
+
 def main():
+    search_test()
     print("ping before launch:", talk([{"type": "ping", "id": "p0"}]))
 
     # The host must launch the app by itself when a real request comes in.
@@ -162,6 +215,8 @@ def main():
     print("safari takeover:", taken and taken.get("state"), "bundle left:", sdir.exists())
     if not taken or sdir.exists():
         fail("Safari's own download was not taken over")
+
+    torrent_test()
 
     # Safari extension: bundled and signed, and the idmmac:// bridge it uses reaches the app.
     appex = APP / "Contents/PlugIns/IDMMacSafari.appex"

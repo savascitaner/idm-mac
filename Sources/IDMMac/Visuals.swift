@@ -2,7 +2,7 @@ import SwiftUI
 
 /// IDM-style categories, chosen from the file extension.
 enum Category: String, CaseIterable, Identifiable {
-    case video, music, program, document, archive, other
+    case video, music, program, document, archive, torrent, other
 
     var id: String { rawValue }
 
@@ -13,6 +13,7 @@ enum Category: String, CaseIterable, Identifiable {
         case .program: return "Programlar"
         case .document: return "Belgeler"
         case .archive: return "Arşivler"
+        case .torrent: return "Torrentler"
         case .other: return "Diğer"
         }
     }
@@ -24,6 +25,7 @@ enum Category: String, CaseIterable, Identifiable {
         case .program: return "app.badge.fill"
         case .document: return "doc.richtext.fill"
         case .archive: return "doc.zipper"
+        case .torrent: return "point.3.connected.trianglepath.dotted"
         case .other: return "doc.fill"
         }
     }
@@ -35,6 +37,7 @@ enum Category: String, CaseIterable, Identifiable {
         case .program: return .blue
         case .document: return .orange
         case .archive: return .brown
+        case .torrent: return .teal
         case .other: return .gray
         }
     }
@@ -49,6 +52,7 @@ enum Category: String, CaseIterable, Identifiable {
 
     static func of(_ rec: DownloadRecord) -> Category {
         if rec.kind == .video { return rec.audioOnly ? .music : .video }
+        if rec.kind == .torrent { return .torrent }
         let ext = (rec.fileName as NSString).pathExtension.lowercased()
         return map.first { $0.value.contains(ext) }?.key ?? .other
     }
@@ -57,6 +61,7 @@ enum Category: String, CaseIterable, Identifiable {
 enum SidebarItem: Hashable {
     case all, active, completed, failed
     case category(Category)
+    case search
 }
 
 /// Shows each connection's byte range like IDM's "download progress" map:
@@ -108,6 +113,9 @@ struct Sidebar: View {
                     row(.completed, "Tamamlanan", "checkmark.circle.fill", .teal, model.downloads.filter { $0.state == .completed }.count)
                     row(.failed, "Hatalı", "exclamationmark.triangle.fill", .red, model.downloads.filter { $0.state == .failed }.count)
                 }
+                Section("Torrent") {
+                    row(.search, "Torrent ara", "magnifyingglass", .teal, 0)
+                }
                 Section("Kategoriler") {
                     ForEach(Category.allCases) { c in
                         row(.category(c), c.title, c.icon, c.color, model.downloads.filter { Category.of($0) == c }.count)
@@ -142,6 +150,7 @@ extension SidebarItem {
         case .completed: return d.state == .completed
         case .failed: return d.state == .failed
         case .category(let c): return Category.of(d) == c
+        case .search: return false
         }
     }
 
@@ -152,6 +161,7 @@ extension SidebarItem {
         case .completed: return "Tamamlanan"
         case .failed: return "Hatalı"
         case .category(let c): return c.title
+        case .search: return "Torrent ara"
         }
     }
 }

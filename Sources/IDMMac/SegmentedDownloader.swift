@@ -13,6 +13,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         var finalPath: String?
         var fileName: String
         var connections: Int
+        var torrentHash: String? = nil
     }
 
     enum Event {

@@ -3,6 +3,7 @@ import Foundation
 enum DownloadKind: String, Codable {
     case file
     case video
+    case torrent
 }
 
 enum DownloadState: String, Codable {
@@ -62,6 +63,7 @@ struct DownloadRecord: Codable, Identifiable {
     var thumbnail: String?
     var audioLanguage: String?
     var playlistIndex: Int?
+    var torrentHash: String?
     var createdAt = Date()
     var completedAt: Date?
 

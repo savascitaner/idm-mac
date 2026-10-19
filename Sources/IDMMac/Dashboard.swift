@@ -254,7 +254,7 @@ struct DownloadInspector: View {
 
                 section("Bilgi") {
                     info("Boyut", Format.bytes(record.totalBytes))
-                    info("Bağlantı", record.connections > 0 ? "\(record.connections)" : "—")
+                    info(record.kind == .torrent ? "Eş (peer)" : "Bağlantı", record.connections > 0 ? "\(record.connections)" : "—")
                     info("Eklendi", record.createdAt.formatted(date: .abbreviated, time: .shortened))
                     if let done = record.completedAt {
                         info("Bitti", done.formatted(date: .abbreviated, time: .shortened))
