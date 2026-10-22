@@ -57,6 +57,7 @@ jobs:
           INST_ID="$(echo "$IDS" | sed -n 's/.*"\(Developer ID Installer:[^"]*\)".*/\1/p' | head -1)"
           [ -n "$APP_ID" ] || { echo "Developer ID Application sertifikası bulunamadı"; exit 1; }
           echo "SIGN_ID=$APP_ID" >> "$GITHUB_ENV"
+          echo "KEYCHAIN=$KC" >> "$GITHUB_ENV"
           [ -n "$INST_ID" ] && echo "INSTALLER_ID=$INST_ID" >> "$GITHUB_ENV"
           exit 0
 

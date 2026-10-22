@@ -164,8 +164,9 @@ chmod +x "$TMP/pkgscripts/postinstall"
 pkgbuild --analyze --root "$PKGROOT" "$TMP/components.plist" >/dev/null
 plutil -replace 0.BundleIsRelocatable -bool false "$TMP/components.plist"
 PKG_SIGN=()
-[ -n "${INSTALLER_ID:-}" ] && PKG_SIGN=(--sign "$INSTALLER_ID" --timestamp)
-pkgbuild --root "$PKGROOT" --component-plist "$TMP/components.plist" --scripts "$TMP/pkgscripts" ${PKG_SIGN[@]+"${PKG_SIGN[@]}"} \
+[ -n "${INSTALLER_ID:-}" ] && PKG_SIGN=(--sign "$INSTALLER_ID" --timestamp ${KEYCHAIN:+--keychain "$KEYCHAIN"})
+# A signing prompt nobody can click would hang forever; fail after 5 minutes instead.
+perl -e 'alarm shift; exec @ARGV' 300 pkgbuild --root "$PKGROOT" --component-plist "$TMP/components.plist" --scripts "$TMP/pkgscripts" ${PKG_SIGN[@]+"${PKG_SIGN[@]}"} \
   --identifier com.savascitaner.idmmac.pkg --version "$VERSION" --install-location / "dist/MDM.pkg"
 pkgutil --payload-files dist/MDM.pkg | grep -q "Applications/MDM.app/Contents/MacOS/IDMMac"
 if [ -n "${SIGN_ID:-}" ] && [ -z "${INSTALLER_ID:-}" ]; then
