@@ -72,7 +72,9 @@ jobs:
       - name: Smoke test (launch app, download through the native host)
         run: python3 Packaging/smoke_test.py "dist/MDM.app"
 
+      # The release is the real delivery; a full Actions storage quota must not fail the build.
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: MDM
           path: |
@@ -82,6 +84,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         if: always()
+        continue-on-error: true
         with:
           name: screenshot
           path: dist/screenshot.png
