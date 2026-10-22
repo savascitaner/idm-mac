@@ -163,11 +163,17 @@ EOS
 chmod +x "$TMP/pkgscripts/postinstall"
 pkgbuild --analyze --root "$PKGROOT" "$TMP/components.plist" >/dev/null
 plutil -replace 0.BundleIsRelocatable -bool false "$TMP/components.plist"
-PKG_SIGN=()
-[ -n "${INSTALLER_ID:-}" ] && PKG_SIGN=(--sign "$INSTALLER_ID" --timestamp ${KEYCHAIN:+--keychain "$KEYCHAIN"})
-# A signing prompt nobody can click would hang forever; fail after 5 minutes instead.
-perl -e 'alarm shift; exec @ARGV' 300 pkgbuild --root "$PKGROOT" --component-plist "$TMP/components.plist" --scripts "$TMP/pkgscripts" ${PKG_SIGN[@]+"${PKG_SIGN[@]}"} \
-  --identifier com.savascitaner.idmmac.pkg --version "$VERSION" --install-location / "dist/MDM.pkg"
+# Build unsigned, then sign with productsign: pkgbuild --sign hung on the CI keychain.
+# A signing prompt nobody can click would hang forever, so each step fails after a few minutes.
+pkgbuild --root "$PKGROOT" --component-plist "$TMP/components.plist" --scripts "$TMP/pkgscripts" \
+  --identifier com.savascitaner.idmmac.pkg --version "$VERSION" --install-location / "$TMP/MDM-unsigned.pkg"
+if [ -n "${INSTALLER_ID:-}" ]; then
+  echo "==> Signing the installer: $INSTALLER_ID"
+  perl -e 'alarm shift; exec @ARGV' 180 productsign --sign "$INSTALLER_ID" ${KEYCHAIN:+--keychain "$KEYCHAIN"} \
+    "$TMP/MDM-unsigned.pkg" dist/MDM.pkg
+else
+  cp "$TMP/MDM-unsigned.pkg" dist/MDM.pkg
+fi
 pkgutil --payload-files dist/MDM.pkg | grep -q "Applications/MDM.app/Contents/MacOS/IDMMac"
 if [ -n "${SIGN_ID:-}" ] && [ -z "${INSTALLER_ID:-}" ]; then
   echo "note: no Developer ID Installer certificate, so MDM.pkg is not published (an unsigned .pkg would still show a warning)"
