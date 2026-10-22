@@ -6,7 +6,8 @@ import Foundation
 @MainActor
 final class Updater: ObservableObject {
     static let shared = Updater()
-    static let repo = "savascitaner/idm-mac"
+    /// Public repository that only holds the built MDM.pkg / MDM.dmg (the source repository is private).
+    static let repo = "savascitaner/mdm-releases"
 
     /// Short commit of a newer build, when there is one.
     @Published private(set) var available: String?
@@ -59,6 +60,15 @@ final class Updater: ObservableObject {
         }
     }
 
+    /// The build's commit: a "commit: <sha>" line in the release notes, else the release's target.
+    private static func commit(in release: [String: Any]) -> String? {
+        if let body = release["body"] as? String,
+           let r = body.range(of: #"commit: ([0-9a-f]{7,40})"#, options: .regularExpression) {
+            return String(body[r].dropFirst("commit: ".count))
+        }
+        return release["target_commitish"] as? String
+    }
+
     private func performCheck() async {
         guard Self.isReleaseBuild else {
             status = "Bu bir geliştirici derlemesi; güncelleme denetlenmiyor"
@@ -77,7 +87,7 @@ final class Updater: ObservableObject {
                 lastCode = (response as? HTTPURLResponse)?.statusCode ?? 0
                 guard lastCode == 200,
                       let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let sha = json["target_commitish"] as? String, sha.count >= 7 else {
+                      let sha = Self.commit(in: json), sha.count >= 7 else {
                     if attempt < 2 { try await Task.sleep(nanoseconds: 8_000_000_000) }
                     continue
                 }
