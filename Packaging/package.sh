@@ -165,7 +165,7 @@ pkgbuild --analyze --root "$PKGROOT" "$TMP/components.plist" >/dev/null
 plutil -replace 0.BundleIsRelocatable -bool false "$TMP/components.plist"
 PKG_SIGN=()
 [ -n "${INSTALLER_ID:-}" ] && PKG_SIGN=(--sign "$INSTALLER_ID" --timestamp)
-pkgbuild --root "$PKGROOT" --component-plist "$TMP/components.plist" --scripts "$TMP/pkgscripts" "${PKG_SIGN[@]}" \
+pkgbuild --root "$PKGROOT" --component-plist "$TMP/components.plist" --scripts "$TMP/pkgscripts" ${PKG_SIGN[@]+"${PKG_SIGN[@]}"} \
   --identifier com.savascitaner.idmmac.pkg --version "$VERSION" --install-location / "dist/MDM.pkg"
 pkgutil --payload-files dist/MDM.pkg | grep -q "Applications/MDM.app/Contents/MacOS/IDMMac"
 if [ -n "${SIGN_ID:-}" ] && [ -z "${INSTALLER_ID:-}" ]; then
