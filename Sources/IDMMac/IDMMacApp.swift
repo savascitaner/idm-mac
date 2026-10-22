@@ -107,6 +107,30 @@ extension Notification.Name {
     static let showAddURL = Notification.Name("IDMMacShowAddURL")
 }
 
+/// Who signed this copy of MDM, read from the app's own code signature.
+enum SignatureInfo {
+    /// "Developer ID Application: NAME (TEAM)" when the app carries an Apple Developer ID signature.
+    static let developer: String? = {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        p.arguments = ["-dvv", Bundle.main.bundlePath]
+        let pipe = Pipe()
+        p.standardError = pipe
+        p.standardOutput = FileHandle.nullDevice
+        guard (try? p.run()) != nil else { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        let text = String(decoding: data, as: UTF8.self)
+        return text.split(separator: "\n").lazy
+            .compactMap { $0.hasPrefix("Authority=Developer ID Application:") ? String($0.dropFirst("Authority=".count)) : nil }
+            .first
+    }()
+
+    static var summary: String {
+        developer.map { "İmza: \($0) · Apple tarafından doğrulanmış" } ?? "İmza: Apple Developer ID yok (imzasız derleme)"
+    }
+}
+
 enum AboutPanel {
     static let owner = "Enes Savaşçı"
 
@@ -115,6 +139,7 @@ enum AboutPanel {
         let body: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor.labelColor]
         let small: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 10), .foregroundColor: NSColor.secondaryLabelColor]
         credits.append(NSAttributedString(string: "Bu uygulama \(owner) tarafından, kendi kullanımı için yaptırılmıştır. Tüm hakları \(owner)'ya aittir; izinsiz dağıtılamaz.\n\n", attributes: body))
+        credits.append(NSAttributedString(string: SignatureInfo.summary + "\n\n", attributes: body))
         credits.append(NSAttributedString(string: "İçindeki açık kaynak bileşenler: yt-dlp (Unlicense), FFmpeg (GPL/LGPL), Deno (MIT). Ayrıntılar uygulama paketindeki THIRD_PARTY.md dosyasında.", attributes: small))
         NSApp.activate(ignoringOtherApps: true)
         NSApp.orderFrontStandardAboutPanel(options: [

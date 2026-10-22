@@ -294,11 +294,18 @@ struct ExtensionHelpSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Safari uzantısını aç").font(.title3.bold())
             VStack(alignment: .leading, spacing: 8) {
-                Text("1. Safari > Ayarlar > **Gelişmiş** sekmesinde **Web geliştiricileri için özellikleri göster** kutusunu işaretle.")
-                Text("2. Safari > Ayarlar > **Geliştirici** sekmesinde **İmzasız uzantılara izin ver** kutusunu işaretle.")
-                Text("3. Safari > Ayarlar > **Uzantılar**'da **MDM**'yi işaretle, sonra **Tüm web sitelerinde her zaman izin ver**'i seç.")
-                Text("Uygulama Apple imzalı olmadığı için 2. adım Safari her kapanınca sıfırlanır; Safari'yi her açtığında yeniden işaretle. Uzantı Ayarlar > Uzantılar listesinde yoksa Safari'yi bir kez Cmd+Q ile kapatıp aç; yine yoksa aşağıdaki \"Yeniden kaydet\" düğmesine bas.")
-                    .font(.caption).foregroundStyle(.secondary)
+                if SignatureInfo.developer != nil {
+                    Text("1. Safari > Ayarlar > **Uzantılar**'da **MDM**'yi işaretle.")
+                    Text("2. **Tüm web sitelerinde her zaman izin ver**'i seç.")
+                    Text("Uygulama Apple Developer ID ile imzalı olduğu için geliştirici ayarı gerekmez ve uzantı Safari'yi kapatıp açınca kaybolmaz. Uzantı listede yoksa Safari'yi bir kez Cmd+Q ile kapatıp aç; yine yoksa aşağıdaki \"Yeniden kaydet\" düğmesine bas.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Text("1. Safari > Ayarlar > **Gelişmiş** sekmesinde **Web geliştiricileri için özellikleri göster** kutusunu işaretle.")
+                    Text("2. Safari > Ayarlar > **Geliştirici** sekmesinde **İmzasız uzantılara izin ver** kutusunu işaretle.")
+                    Text("3. Safari > Ayarlar > **Uzantılar**'da **MDM**'yi işaretle, sonra **Tüm web sitelerinde her zaman izin ver**'i seç.")
+                    Text("Uygulama Apple imzalı olmadığı için 2. adım Safari her kapanınca sıfırlanır; Safari'yi her açtığında yeniden işaretle. Uzantı Ayarlar > Uzantılar listesinde yoksa Safari'yi bir kez Cmd+Q ile kapatıp aç; yine yoksa aşağıdaki \"Yeniden kaydet\" düğmesine bas.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 Text("Safari'de linke tıklayınca yakalama sadece .dmg, .zip, .mp4 gibi uzantısı belli linklerde çalışır. Video butonu ve sağ tık menüsü Chrome'daki gibi çalışır.")
                     .font(.caption).foregroundStyle(.secondary)
             }
