@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
-# Builds "MDM.app" (arm64) with yt-dlp and ffmpeg inside, ad-hoc signs it and makes dist/MDM.dmg.
+# Builds "MDM.app" (arm64) with yt-dlp and ffmpeg inside, signs it and makes dist/MDM.dmg and dist/MDM.pkg.
+#
+# Optional environment (CI sets these from repository secrets; without them the build is ad-hoc signed):
+#   SIGN_ID           "Developer ID Application: Name (TEAMID)": real signature with the hardened runtime
+#   INSTALLER_ID      "Developer ID Installer: Name (TEAMID)": signs MDM.pkg (without it no .pkg is published)
+#   NOTARY_APPLE_ID, NOTARY_PASSWORD, NOTARY_TEAM_ID: Apple ID, app-specific password and team for notarization
+#   EXTENSION_PEM     private key of the Chrome extension: packs Resources/mdm-extension.crx
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -24,6 +30,17 @@ COMMIT="${GITHUB_SHA:-dev}"
 fill() { sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" -e "s/__OWNER__/$OWNER/" -e "s/__TOKEN__/$TOKEN/" -e "s/__COMMIT__/$COMMIT/" "$1"; }
 fill Packaging/Info.plist > "$APP/Contents/Info.plist"
 cp -R Extension "$APP/Contents/Resources/ChromeExtension"
+if [ -n "${EXTENSION_PEM:-}" ]; then
+  echo "==> Chrome extension (signed CRX)"
+  printf '%s\n' "$EXTENSION_PEM" > "$TMP/extension.pem"
+  GOT_ID="$(python3 Packaging/make_crx.py Extension "$TMP/extension.pem" "$APP/Contents/Resources/mdm-extension.crx")"
+  WANT_ID="$(sed -n 's/.*static let extensionID = "\([a-p]*\)".*/\1/p' Sources/IDMMac/IPCServer.swift)"
+  echo "extension ID: $GOT_ID"
+  if [ "$GOT_ID" != "$WANT_ID" ]; then
+    echo "error: EXTENSION_PEM makes ID $GOT_ID but the app expects $WANT_ID" >&2
+    exit 1
+  fi
+fi
 
 echo "==> Safari extension"
 APPEX="$APP/Contents/PlugIns/IDMMacSafari.appex"
@@ -81,14 +98,45 @@ for f in "$APP"/Contents/Resources/bin/*; do
   echo "    $(basename "$f"): $(lipo -archs "$f" 2>/dev/null || echo '?')"
 done
 
-echo "==> Ad-hoc signing"
+if [ -n "${SIGN_ID:-}" ]; then
+  echo "==> Signing with: $SIGN_ID"
+  CS=(codesign --force --sign "$SIGN_ID" --options runtime --timestamp)
+else
+  echo "==> Ad-hoc signing"
+  CS=(codesign --force --sign -)
+fi
+# Inner code first, the app last; no --deep.
 for f in "$APP"/Contents/Resources/bin/*; do
-  codesign --verify "$f" 2>/dev/null || codesign --force --sign - "$f"
+  case "$(basename "$f")" in
+    yt-dlp|deno) "${CS[@]}" --entitlements Packaging/helper.entitlements "$f" ;;
+    *) if [ -n "${SIGN_ID:-}" ]; then "${CS[@]}" "$f"; else codesign --verify "$f" 2>/dev/null || "${CS[@]}" "$f"; fi ;;
+  esac
 done
-codesign --force --sign - "$APP/Contents/MacOS/IDMMacHost"
-codesign --force --sign - --entitlements Safari/entitlements.plist "$APPEX"
-codesign --force --sign - "$APP"
-codesign --verify --verbose "$APP"
+"${CS[@]}" "$APP/Contents/MacOS/IDMMacHost"
+"${CS[@]}" --entitlements Safari/entitlements.plist "$APPEX"
+"${CS[@]}" --entitlements Packaging/app.entitlements "$APP"
+codesign --verify --deep --strict --verbose=2 "$APP"
+
+if [ -n "${SIGN_ID:-}" ] && [ -n "${NOTARY_APPLE_ID:-}" ]; then
+  echo "==> Notarizing the app (this waits for Apple, usually a few minutes)"
+  notarize() {
+    local out id status
+    out="$(xcrun notarytool submit "$1" --apple-id "$NOTARY_APPLE_ID" --password "$NOTARY_PASSWORD" \
+          --team-id "$NOTARY_TEAM_ID" --wait --timeout 40m --output-format json)" || true
+    echo "$out"
+    id="$(echo "$out" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("id",""))' 2>/dev/null || true)"
+    status="$(echo "$out" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("status",""))' 2>/dev/null || true)"
+    if [ "$status" != "Accepted" ]; then
+      [ -n "$id" ] && xcrun notarytool log "$id" --apple-id "$NOTARY_APPLE_ID" --password "$NOTARY_PASSWORD" --team-id "$NOTARY_TEAM_ID" || true
+      echo "error: notarization of $1 ended with status '$status'" >&2
+      exit 1
+    fi
+  }
+  ditto -c -k --keepParent "$APP" "$TMP/MDM.zip"
+  notarize "$TMP/MDM.zip"
+  xcrun stapler staple "$APP"
+  xcrun stapler validate "$APP"
+fi
 
 echo "==> DMG"
 STAGE="$TMP/dmg"
@@ -97,6 +145,7 @@ cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
 cp Packaging/BENIOKU.txt "$STAGE/BENİ OKU.txt"
 hdiutil create -volname "MDM" -srcfolder "$STAGE" -ov -format UDZO "dist/MDM.dmg"
+[ -n "${SIGN_ID:-}" ] && codesign --force --sign "$SIGN_ID" --timestamp dist/MDM.dmg
 echo "==> PKG (double-click installer: puts MDM in Applications, no drag and no second \"Open Anyway\")"
 PKGROOT="$TMP/pkgroot"
 mkdir -p "$PKGROOT/Applications" "$TMP/pkgscripts"
@@ -114,8 +163,18 @@ EOS
 chmod +x "$TMP/pkgscripts/postinstall"
 pkgbuild --analyze --root "$PKGROOT" "$TMP/components.plist" >/dev/null
 plutil -replace 0.BundleIsRelocatable -bool false "$TMP/components.plist"
-pkgbuild --root "$PKGROOT" --component-plist "$TMP/components.plist" --scripts "$TMP/pkgscripts" \
+PKG_SIGN=()
+[ -n "${INSTALLER_ID:-}" ] && PKG_SIGN=(--sign "$INSTALLER_ID" --timestamp)
+pkgbuild --root "$PKGROOT" --component-plist "$TMP/components.plist" --scripts "$TMP/pkgscripts" "${PKG_SIGN[@]}" \
   --identifier com.savascitaner.idmmac.pkg --version "$VERSION" --install-location / "dist/MDM.pkg"
 pkgutil --payload-files dist/MDM.pkg | grep -q "Applications/MDM.app/Contents/MacOS/IDMMac"
+if [ -n "${SIGN_ID:-}" ] && [ -z "${INSTALLER_ID:-}" ]; then
+  echo "note: no Developer ID Installer certificate, so MDM.pkg is not published (an unsigned .pkg would still show a warning)"
+  rm -f dist/MDM.pkg
+elif [ -n "${INSTALLER_ID:-}" ] && [ -n "${NOTARY_APPLE_ID:-}" ]; then
+  echo "==> Notarizing the installer"
+  notarize dist/MDM.pkg
+  xcrun stapler staple dist/MDM.pkg
+fi
 echo "==> dist/MDM.pkg"
 echo "==> dist/MDM.dmg"

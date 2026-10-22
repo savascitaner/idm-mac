@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "MDM - Mac Download Manager",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "İndirmeleri ve videoları MDM uygulamasına gönderir.",
-  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAme6Xn/jAuuCiYnhF9y3n+S5KH04T0f2+Tx50c3EeL0TomoadpetxG/AaFO3zUymT+KZ6QWQ8sDOFrO5SBK73wMCEmLI7vS0xJG+fd15gfb/++SmM/AWIBSRLEnzUm5wA0C8F0TwyYF7yqhfxixprRmnJy5rji15mPfvc1/ANU080zkfbWTDs4dMdfUe6sbEIkR2VY8YsA2djTdjFvi0PaMYsKLfd5H7ajUq8rRr7MXSfZBDRYtpRrw66/RF5Xd95o/qTAjozB+gQfTn6qJcmvxutnarcZi0m0CaLDDBs6yz6b5+6RUKD1aSkHa4JDMxOnmQuafzKxmrW7XXMNLO3VQIDAQAB",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlVijISGjEs/keDFtS7/dkctIqOi2+f22pgz8d8j1n2WMSZXWn2/Yyd3uL/Xcz6HNbsNQYC/N3pFQOYhhzN6xYwXDkszHmQxBY4jZ4rdhP7CMd9qkyAnmnC+GcS4cJrvIkUBhO/5X9TgEMKr/MVMiLqLJAdRSLEDoL1e663vVbjA+dBy8430a11ITA9X9uewMDXI8nLFbS9SHxH9NpuiPIjXvD+OXdxl9vV8GsCM/SX51LKVciv2oezNPuR9LlPam1TrgzNT3m7tFxPnvfSGHUfFXj6dhNpg7+xF1DQJvDrIwhvXS6/7fLEikzc9CmhWQmupBZSL+BLDbz+vBy6HhZQIDAQAB",
   "minimum_chrome_version": "116",
   "permissions": ["downloads", "nativeMessaging", "cookies", "contextMenus", "storage", "webRequest"],
   "host_permissions": ["<all_urls>"],

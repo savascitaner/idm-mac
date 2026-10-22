@@ -322,6 +322,11 @@ struct ExtensionHelpSheet: View {
         }
     }
 
+    /// The release build carries the extension as a signed CRX that Chrome offers to install by itself.
+    private static var hasSignedExtension: Bool {
+        Bundle.main.resourceURL.map { FileManager.default.fileExists(atPath: $0.appendingPathComponent("mdm-extension.crx").path) } ?? false
+    }
+
     private func openChromeExtensions() {
         _ = HostInstaller.exportExtension()
         NSPasteboard.general.clearContents()
@@ -338,6 +343,17 @@ struct ExtensionHelpSheet: View {
             Label(model.chromeConnected ? "Eklenti bağlı, kurulum tamam" : "Eklenti henüz bağlanmadı",
                   systemImage: model.chromeConnected ? "checkmark.circle.fill" : "circle.dashed")
                 .foregroundStyle(model.chromeConnected ? .green : .orange)
+            if Self.hasSignedExtension, !model.chromeConnected {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Eklenti MDM'nin içinde hazır").font(.headline)
+                    Text("**Chrome'u kapatıp yeniden aç.** Chrome \"MDM eklentisi eklendi\" diye sorar; **Etkinleştir**'e bas. Başka bir şey yapman gerekmez.")
+                    Text("Sorulmazsa: Chrome menüsü › Uzantılar › Uzantıları yönet sayfasında MDM'nin yanındaki anahtarı aç.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(0.1)))
+                Text("Çalışmazsa eklentiyi elle de yükleyebilirsin:").font(.caption).foregroundStyle(.secondary)
+            }
             Button {
                 openChromeExtensions()
             } label: {

@@ -62,6 +62,7 @@ final class AppModel: ObservableObject {
         }
         server?.start()
         let linked = HostInstaller.install()
+        if !isDemo { HostInstaller.offerExtension() }
         if !isDemo { browsersLinked = linked }
         _ = HostInstaller.exportExtension()
         _ = Tools.ytdlp

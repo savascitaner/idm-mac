@@ -118,7 +118,9 @@ final class IPCServer {
 /// Registers the native messaging host with every Chromium-based browser that is installed.
 enum HostInstaller {
     static let hostName = "com.savascitaner.idmmac"
-    static let extensionID = "mnanilgkappdlfepnjifibfalbblnbcc"
+    static let extensionID = "pmbpnoekfadmikgamnhkbmohcjkbllie"
+    /// The ID before the extension was packed as a CRX; kept so a copy loaded by hand still works.
+    static let legacyExtensionIDs = ["mnanilgkappdlfepnjifibfalbblnbcc"]
 
     static let browserDirs = [
         "Google/Chrome", "Google/Chrome Beta", "Google/Chrome Dev", "Google/Chrome Canary",
@@ -135,7 +137,7 @@ enum HostInstaller {
             "description": "MDM native messaging host",
             "path": hostExe.path,
             "type": "stdio",
-            "allowed_origins": ["chrome-extension://\(extensionID)/"],
+            "allowed_origins": ([extensionID] + legacyExtensionIDs).map { "chrome-extension://\($0)/" },
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .withoutEscapingSlashes]) else { return [] }
         let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -150,6 +152,34 @@ enum HostInstaller {
             }
         }
         return installed
+    }
+
+    /// Offers the bundled, signed extension (mdm-extension.crx) to every installed Chromium browser through its
+    /// "External Extensions" folder. The browser finds it on its next start and asks before turning it on,
+    /// so nothing has to be loaded by hand. Returns the browsers that were given the offer.
+    @discardableResult
+    static func offerExtension() -> [String] {
+        let fm = FileManager.default
+        guard let crx = Bundle.main.resourceURL?.appendingPathComponent("mdm-extension.crx"), fm.fileExists(atPath: crx.path),
+              let manifest = Bundle.main.resourceURL?.appendingPathComponent("ChromeExtension/manifest.json"),
+              let m = (try? JSONSerialization.jsonObject(with: Data(contentsOf: manifest))) as? [String: Any],
+              let version = m["version"] as? String else { return [] }
+        // The browser reads the file from a path that survives app updates and moves.
+        let stable = Paths.support.appendingPathComponent("mdm-extension.crx")
+        try? fm.removeItem(at: stable)
+        guard (try? fm.copyItem(at: crx, to: stable)) != nil,
+              let json = try? JSONSerialization.data(withJSONObject: ["external_crx": stable.path, "external_version": version],
+                                                     options: [.prettyPrinted, .withoutEscapingSlashes]) else { return [] }
+        let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        var offered: [String] = []
+        for dir in browserDirs {
+            let browser = base.appendingPathComponent(dir, isDirectory: true)
+            guard fm.fileExists(atPath: browser.path) else { continue }
+            let external = browser.appendingPathComponent("External Extensions", isDirectory: true)
+            try? fm.createDirectory(at: external, withIntermediateDirectories: true)
+            if (try? json.write(to: external.appendingPathComponent("\(extensionID).json"))) != nil { offered.append(dir) }
+        }
+        return offered
     }
 
     /// Copies the bundled extension to a stable folder that Chrome can load ("Load unpacked").
