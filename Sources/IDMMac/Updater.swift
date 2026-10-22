@@ -6,8 +6,8 @@ import Foundation
 @MainActor
 final class Updater: ObservableObject {
     static let shared = Updater()
-    /// Public repository that only holds the built MDM.pkg / MDM.dmg (the source repository is private).
-    static let repo = "savascitaner/mdm-releases"
+    /// Repository whose "latest" release holds the built MDM.pkg / MDM.dmg (must be public for the updater).
+    static let repo = "savascitaner/idm-mac"
 
     /// Short commit of a newer build, when there is one.
     @Published private(set) var available: String?
