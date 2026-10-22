@@ -32,42 +32,79 @@ final class Updater: ObservableObject {
     }
 
     func check() {
+        Task { await performCheck() }
+    }
+
+    /// "MDM'yi güncelle…" menu item: checks now and answers in a dialog either way.
+    func checkWithAnswer() {
+        Task {
+            await performCheck()
+            let alert = NSAlert()
+            NSApp.activate(ignoringOtherApps: true)
+            if let available {
+                alert.messageText = "Yeni sürüm var (\(available))"
+                alert.informativeText = "Şimdi kurulsun mu? MDM kapanıp yeniden açılır; sürmekte olan indirmeler kaldığı yerden devam eder."
+                alert.addButton(withTitle: "Güncelle ve yeniden aç")
+                alert.addButton(withTitle: "Sonra")
+                if alert.runModal() == .alertFirstButtonReturn { install() }
+            } else if status.hasPrefix("Güncel") {
+                alert.messageText = "MDM güncel"
+                alert.informativeText = "Uygulamanız en son sürümde (\(Self.currentCommit.prefix(7)))."
+                alert.runModal()
+            } else {
+                alert.messageText = "Güncelleme denetlenemedi"
+                alert.informativeText = status
+                alert.runModal()
+            }
+        }
+    }
+
+    private func performCheck() async {
         guard Self.isReleaseBuild else {
             status = "Bu bir geliştirici derlemesi; güncelleme denetlenmiyor"
             return
         }
         guard !installing else { return }
         status = "Denetleniyor…"
-        Task {
+        // The release is deleted and recreated while a build publishes, so a missing one gets a second try.
+        var lastCode = 0
+        for attempt in 0..<3 {
             do {
                 var req = URLRequest(url: URL(string: "https://api.github.com/repos/\(Self.repo)/releases/tags/latest")!,
                                      timeoutInterval: 30)
                 req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
                 let (data, response) = try await URLSession.shared.data(for: req)
-                guard (response as? HTTPURLResponse)?.statusCode == 200,
+                lastCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+                guard lastCode == 200,
                       let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                       let sha = json["target_commitish"] as? String, sha.count >= 7 else {
-                    throw TorrentService.Failure(errorDescription: "sürüm bilgisi okunamadı")
+                    if attempt < 2 { try await Task.sleep(nanoseconds: 8_000_000_000) }
+                    continue
                 }
                 let assets = json["assets"] as? [[String: Any]] ?? []
                 let dmg = assets.first { $0["name"] as? String == "MDM.dmg" }?["browser_download_url"] as? String
                 let mine = Self.currentCommit
                 if sha.hasPrefix(mine) || mine.hasPrefix(sha) {
-                    self.available = nil
-                    self.status = "Güncel (\(mine.prefix(7)))"
+                    available = nil
+                    status = "Güncel (\(mine.prefix(7)))"
                     return
                 }
-                self.available = String(sha.prefix(7))
-                self.dmgURL = dmg.flatMap { URL(string: $0) }
-                self.status = "Yeni sürüm var (\(sha.prefix(7)))"
-                if self.notified != sha {
-                    self.notified = sha
+                available = String(sha.prefix(7))
+                dmgURL = dmg.flatMap { URL(string: $0) }
+                status = "Yeni sürüm var (\(sha.prefix(7)))"
+                if notified != sha {
+                    notified = sha
                     AppModel.shared.notifyUser("MDM için yeni sürüm var", "Ayarlar'dan ya da ana penceredeki düğmeyle kurabilirsin.")
                 }
+                return
             } catch {
-                self.status = "Denetlenemedi: \(error.localizedDescription)"
+                status = "Denetlenemedi: \(error.localizedDescription)"
+                return
             }
         }
+        status = lastCode == 404 || lastCode == 200
+            ? "Sürüm bilgisi şu an alınamıyor (yeni sürüm yayınlanıyor olabilir); birkaç dakika sonra tekrar dene"
+            : "Sürüm bilgisi okunamadı (GitHub yanıtı \(lastCode))"
     }
 
     /// Downloads the DMG, copies MDM.app out of it, and swaps it in once MDM has quit.

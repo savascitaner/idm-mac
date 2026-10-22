@@ -36,6 +36,7 @@ final class AppModel: ObservableObject {
     private var speedTimer: Timer?
     private let videoWindows = VideoWindowController()
     private var dockHost: NSHostingView<DockTileView>?
+    private var dockPercent = -1
     private var ticks = 0
     private var booted = false
     private var early: [[String: Any]] = []
@@ -124,6 +125,10 @@ final class AppModel: ObservableObject {
     private func updateDock() {
         let tile = NSApp.dockTile
         if activeCount > 0, let p = overallProgress {
+            // Redrawing the Dock tile every second is wasted work: only when the percentage moves.
+            let percent = Int(p * 100)
+            guard percent != dockPercent || dockHost == nil else { return }
+            dockPercent = percent
             if let host = dockHost {
                 host.rootView = DockTileView(progress: p)
             } else {
@@ -134,6 +139,7 @@ final class AppModel: ObservableObject {
             }
             tile.display()
         } else if dockHost != nil {
+            dockPercent = -1
             tile.contentView = nil
             dockHost = nil
             tile.display()

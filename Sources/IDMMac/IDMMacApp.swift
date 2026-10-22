@@ -56,6 +56,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         TorrentService.shared.stop()
     }
 
+    /// Clicking the Dock icon brings the window back, also when it was minimised to the Dock.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        for w in NSApp.windows where w.isMiniaturized { w.deminiaturize(nil) }
+        NSApp.activate(ignoringOtherApps: true)
+        return true
+    }
+
     // Keep running in the menu bar when the window is closed, like IDM in the tray.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 }
@@ -75,6 +82,7 @@ struct IDMMacApp: App {
         .commands {
             CommandGroup(replacing: .appInfo) {
                 Button("MDM Hakkında") { AboutPanel.show() }
+                Button("Güncellemeleri denetle…") { Updater.shared.checkWithAnswer() }
             }
             CommandGroup(replacing: .newItem) {
                 AddURLCommand()
