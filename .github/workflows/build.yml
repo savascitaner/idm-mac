@@ -102,9 +102,16 @@ jobs:
           [ -f dist/MDM.pkg ] && FILES="$FILES dist/MDM.pkg"
           [ -f dist/screenshot.png ] && FILES="$FILES dist/screenshot.png"
           [ -f dist/shots.zip ] && FILES="$FILES dist/shots.zip"
-          gh release create latest $FILES --prerelease --target "$GITHUB_SHA" \
-            --title "Son sürüm (${GITHUB_SHA::7})" \
-            --notes "main dalından otomatik üretilen son sürüm. Kurulum için DMG içindeki BENİ OKU dosyasına bak."
+          # The release is gone between delete and create, so a failed create is retried.
+          for try in 1 2 3 4; do
+            gh release create latest $FILES --prerelease --target "$GITHUB_SHA" \
+              --title "Son sürüm (${GITHUB_SHA::7})" \
+              --notes "main dalından otomatik üretilen son sürüm. Kurulum için MDM.pkg dosyasını indirip çift tıkla.
+
+          commit: ${GITHUB_SHA}" && exit 0
+            sleep $((try * 15))
+          done
+          exit 1
 
       # The source repository is private; the app and its updater read this public one.
       - name: Publish to the public releases repository
