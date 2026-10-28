@@ -11,6 +11,7 @@ enum Log {
     static func window(_ message: String) { write("window", message) }
     static func download(_ message: String) { write("download", message) }
     static func update(_ message: String) { write("update", message) }
+    static func torrent(_ message: String) { write("torrent", message) }
 
     static func write(_ category: String, _ message: String) {
         logger.notice("[\(category, privacy: .public)] \(message, privacy: .public)")

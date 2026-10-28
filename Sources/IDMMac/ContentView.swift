@@ -195,7 +195,11 @@ struct DownloadRow: View {
             if !sp.isEmpty { parts.append(sp) }
             let eta = Format.eta(remaining: record.totalBytes - record.receivedBytes, speed: record.speed)
             if !eta.isEmpty { parts.append("kalan \(eta)") }
-            if record.connections > 1 { parts.append(record.kind == .torrent ? "\(record.connections) eş" : "\(record.connections) bağlantı") }
+            if record.kind == .torrent {
+                parts.append(record.note ?? "\(record.connections) eş")
+            } else if record.connections > 1 {
+                parts.append("\(record.connections) bağlantı")
+            }
             return parts.joined(separator: " · ")
         case .paused: return "Duraklatıldı · \(Format.bytes(record.receivedBytes)) / \(Format.bytes(record.totalBytes))"
         case .completed: return "Tamamlandı · \(Format.bytes(record.totalBytes))"

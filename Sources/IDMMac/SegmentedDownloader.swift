@@ -14,6 +14,8 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         var fileName: String
         var connections: Int
         var torrentHash: String? = nil
+        var note: String? = nil        // what a torrent is doing right now ("eş aranıyor", ...)
+        var webSeed = false            // the torrent is being fetched over HTTP from its web seeds
     }
 
     enum Event {
