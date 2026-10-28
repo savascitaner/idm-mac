@@ -2,8 +2,8 @@ import Foundation
 
 /// Safari gives extensions no downloads API, so downloads it starts by itself (a link opened from
 /// another app, a redirect, a script) are caught on disk instead: Safari writes each one as a
-/// "name.download" folder whose Info.plist names the source URL. MDM takes the URL over and removes
-/// Safari's partial copy, the way IDM takes over a browser download.
+/// "name.download" folder whose Info.plist names the source URL. MDM takes the URL over and, once its
+/// own request works, removes Safari's partial copy, the way IDM takes over a browser download.
 @MainActor
 final class SafariWatcher: ObservableObject {
     static let shared = SafariWatcher()
@@ -84,7 +84,7 @@ final class SafariWatcher: ObservableObject {
         guard FileManager.default.fileExists(atPath: path) else {
             return log("Safari indirmeyi MDM almadan bitirdi: \(path)")
         }
-        guard let url = Self.sourceURL(path) else {
+        guard let (url, referrer) = Self.source(path) else {
             if tries < 40 {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { self.take(path, tries: tries + 1) }
             } else {
@@ -93,43 +93,67 @@ final class SafariWatcher: ObservableObject {
             }
             return
         }
+        // The "where from" tag (page URL) can land a moment after Info.plist; wait for it briefly.
+        if referrer == nil, tries < 5 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { self.take(path, tries: tries + 1) }
+            return
+        }
         guard url.hasPrefix("http://") || url.hasPrefix("https://") else { return log("http değil: \(url)") }
         if let t = handedBack[url], t.timeIntervalSinceNow > -600 { return log("Safari'ye geri verilmişti: \(url)") }
         let name = String(URL(fileURLWithPath: path).lastPathComponent.dropLast(".download".count))
-        try? FileManager.default.removeItem(atPath: path)
-        log("devralındı: \(url)")
-        AppModel.shared.addFile(url: url, fileName: name, browserMime: "application/octet-stream", fallback: "safari")
+        // Safari's copy is kept until MDM's first request succeeds (AppModel removes it then). If the server
+        // refuses MDM (it wants Safari's cookies, or the link is tied to Safari's IP like iCloud Private Relay
+        // or a googlevideo.com link), Safari simply goes on and the reason shows in MDM's list.
+        var headers = ["User-Agent": Self.userAgent]
+        if let r = referrer { headers["Referer"] = r }
+        log("devralınıyor: \(url) (sayfa: \(referrer ?? "yok"))")
+        AppModel.shared.addFile(url: url, fileName: name, headers: headers, browserMime: "application/octet-stream",
+                                safariPartial: path)
     }
 
-    /// The source URL from Safari's Info.plist, or from the "where from" tag on the partial file.
-    static func sourceURL(_ path: String) -> String? {
+    /// What MDM says it is when it fetches a download Safari started: Safari itself, so servers that
+    /// look at the browser answer MDM the way they answered Safari.
+    nonisolated static let userAgent: String = {
+        let v = Bundle(path: "/Applications/Safari.app")?.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        return "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/\(v ?? "18.0") Safari/605.1.15"
+    }()
+
+    /// The source URL and the page it came from. The URL is in Safari's Info.plist; the page is the
+    /// second entry of the "where from" tag Safari puts on the partial file.
+    static func source(_ path: String) -> (String, String?)? {
+        var froms = whereFrom(path)
+        if froms.isEmpty {
+            let files = (try? FileManager.default.contentsOfDirectory(atPath: path)) ?? []
+            for f in files where f != "Info.plist" {
+                froms = whereFrom(path + "/" + f)
+                if !froms.isEmpty { break }
+            }
+        }
+        var url: String?
         let plist = URL(fileURLWithPath: path).appendingPathComponent("Info.plist")
         if let data = try? Data(contentsOf: plist),
            let dict = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any] {
             for key in ["DownloadEntryURL", "DownloadEntryOriginalURL", "URL"] {
-                if let url = dict[key] as? String, !url.isEmpty { return url }
+                if let u = dict[key] as? String, !u.isEmpty { url = u; break }
             }
         }
-        if let url = whereFrom(path) { return url }
-        let files = (try? FileManager.default.contentsOfDirectory(atPath: path)) ?? []
-        for f in files where f != "Info.plist" {
-            if let url = whereFrom(path + "/" + f) { return url }
-        }
-        return nil
+        guard let u = url ?? froms.first else { return nil }
+        return (u, froms.first { $0 != u })
     }
 
-    private static func whereFrom(_ file: String) -> String? {
+    private static func whereFrom(_ file: String) -> [String] {
         let attr = "com.apple.metadata:kMDItemWhereFroms"
         let n = getxattr(file, attr, nil, 0, 0, 0)
-        guard n > 0 else { return nil }
+        guard n > 0 else { return [] }
         var buf = [UInt8](repeating: 0, count: n)
         guard getxattr(file, attr, &buf, n, 0, 0) == n,
               let list = (try? PropertyListSerialization.propertyList(from: Data(buf), format: nil)) as? [String]
-        else { return nil }
-        return list.first { $0.hasPrefix("http") }
+        else { return [] }
+        return list.filter { $0.hasPrefix("http") }
     }
 
-    private func log(_ line: String) {
+    func log(_ line: String) {
+        Log.write("safari", line)
         let stamp = ISO8601DateFormatter().string(from: Date())
         let data = Data("\(stamp) \(line)\n".utf8)
         if let h = try? FileHandle(forWritingTo: Self.logFile) {

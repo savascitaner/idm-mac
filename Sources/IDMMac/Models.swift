@@ -57,6 +57,7 @@ struct DownloadRecord: Codable, Identifiable {
     var browserMime: String?
     var originalURL: String?
     var browserFallback: String?   // "safari": reopen there if the link turns out to be a web page
+    var safariPartial: String?     // Safari's own "name.download" copy, removed once MDM's request works
     var videoFormat: String?
     var videoSort: String?
     var audioOnly: Bool = false

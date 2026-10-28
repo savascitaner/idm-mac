@@ -6,12 +6,14 @@ Chrome does (4-byte length + JSON on stdin/stdout), asks it to download a test f
 checks that the file arrives complete with macOS download metadata.
 """
 import base64
+import http.server
 import json
 import os
 import plistlib
 import struct
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -75,6 +77,70 @@ def search_test():
         print("    sources:", sources)
         if out.returncode != 0:
             fail(f"torrent search '{q}' found nothing")
+
+
+class LocalFiles(http.server.BaseHTTPRequestHandler):
+    """/forbidden always answers 403; /norange answers 403 to Range requests but sends the file to a plain GET."""
+    BODY = os.urandom(300_000)
+
+    def do_GET(self):
+        if self.path.startswith("/forbidden") or (self.path.startswith("/norange") and self.headers.get("Range")):
+            self.send_response(403)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Length", str(len(self.BODY)))
+        self.end_headers()
+        self.wfile.write(self.BODY)
+
+    def log_message(self, *args):
+        pass
+
+
+def safari_refusal_test():
+    """A Safari download the server refuses to give MDM stays with Safari (its partial copy is not deleted)
+    and shows in MDM's list as failed with the reason, instead of vanishing. A server that only refuses
+    Range requests still gives MDM the file."""
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), LocalFiles)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{server.server_port}"
+
+    def safari_download(name, target):
+        d = Path.home() / "Downloads" / f"{name}.download"
+        d.mkdir(parents=True, exist_ok=True)
+        plistlib.dump({"DownloadEntryURL": target, "DownloadEntryPath": str(d)}, open(d / "Info.plist", "wb"))
+        return d
+
+    def wait(target, states, seconds=40):
+        deadline = time.time() + seconds
+        while time.time() < deadline:
+            time.sleep(2)
+            try:
+                rec = next((r for r in json.loads(DB.read_text()) if r.get("url") == target), None)
+            except (ValueError, OSError):
+                rec = None
+            if rec and rec.get("state") in states:
+                return rec
+        return rec
+
+    refused = f"{base}/forbidden/file.bin"
+    rdir = safari_download("refused.bin", refused)
+    rec = wait(refused, ("failed",))
+    print("safari refused:", rec and rec.get("state"), rec and rec.get("error"), "bundle left:", rdir.exists())
+    if not rec or rec.get("state") != "failed" or "Safari" not in (rec.get("error") or ""):
+        fail("a refused Safari takeover did not stay in the list with the reason")
+    if not rdir.exists():
+        fail("Safari's own copy was deleted although MDM could not download the file")
+
+    norange = f"{base}/norange/file.bin"
+    ndir = safari_download("norange.bin", norange)
+    rec = wait(norange, ("completed", "failed"))
+    print("server without Range:", rec and rec.get("state"), rec and rec.get("error"), "bundle left:", ndir.exists())
+    if not rec or rec.get("state") != "completed" or ndir.exists():
+        fail("a server that refuses Range requests was not downloaded with a plain request")
+    server.shutdown()
 
 
 def torrent_test():
@@ -203,18 +269,29 @@ def main():
     sdir = Path.home() / "Downloads" / "safari-test.bin.download"
     sdir.mkdir(parents=True, exist_ok=True)
     surl = url + ("&" if "?" in url else "?") + "safari=1"
+    # Safari tags its partial file with [download URL, page URL]; the page becomes the Referer.
+    part = sdir / "safari-test.bin"
+    part.write_bytes(b"")
+    froms = plistlib.dumps([surl, "https://example.com/page"], fmt=plistlib.FMT_BINARY).hex()
+    subprocess.run(["xattr", "-wx", "com.apple.metadata:kMDItemWhereFroms", froms, str(part)], check=True)
     plistlib.dump({"DownloadEntryURL": surl, "DownloadEntryPath": str(sdir)}, open(sdir / "Info.plist", "wb"))
     deadline = time.time() + 30
     taken = None
-    while time.time() < deadline and not taken:
+    while time.time() < deadline and (not taken or sdir.exists()):
         time.sleep(2)
         try:
             taken = next((d for d in json.loads(DB.read_text()) if d.get("url") == surl), None)
         except (ValueError, OSError):
             pass
-    print("safari takeover:", taken and taken.get("state"), "bundle left:", sdir.exists())
+    print("safari takeover:", taken and taken.get("state"), "bundle left:", sdir.exists(),
+          "headers:", taken and taken.get("headers"))
     if not taken or sdir.exists():
         fail("Safari's own download was not taken over")
+    h = taken.get("headers") or {}
+    if h.get("Referer") != "https://example.com/page" or "Safari/" not in h.get("User-Agent", ""):
+        fail("Safari takeover did not carry Safari's user agent and the page as Referer")
+
+    safari_refusal_test()
 
     torrent_test()
 
