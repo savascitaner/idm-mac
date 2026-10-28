@@ -257,10 +257,10 @@ final class VideoDownloader {
         if SpeedLimit.bytesPerSecond > 0 { args += ["--limit-rate", "\(SpeedLimit.bytesPerSecond)"] }
         if !record.audioOnly { args += ["--merge-output-format", "mp4"] }
         if !record.audioOnly, UserDefaults.standard.bool(forKey: "videoSubtitles") {
-            // Subtitles the uploader made, in the chosen languages, put into the file; a video without them downloads as usual.
+            // Subtitles the uploader made, and YouTube's automatic captions, in the chosen languages, put into the file; a video without them downloads as usual.
             let langs = (UserDefaults.standard.string(forKey: "subtitleLanguages") ?? "tr,en")
                 .split(whereSeparator: { ", ;".contains($0) }).joined(separator: ",")
-            args += ["--write-subs", "--sub-langs", langs.isEmpty ? "tr,en" : langs, "--embed-subs"]
+            args += ["--write-subs", "--write-auto-subs", "--sub-langs", langs.isEmpty ? "tr,en" : langs, "--embed-subs"]
         }
         args.append(record.url)
 
