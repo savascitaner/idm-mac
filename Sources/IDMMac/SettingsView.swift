@@ -106,7 +106,7 @@ struct SettingsView: View {
                 Toggle("Videoya altyazıyı da göm (varsa)", isOn: $videoSubtitles)
                 TextField("Altyazı dilleri", text: $subtitleLanguages, prompt: Text("tr,en"))
                     .disabled(!videoSubtitles)
-                Text("Yükleyenin hazırladığı altyazılar mp4 dosyasının içine konur; altyazısı olmayan videolar her zamanki gibi iner.")
+                Text("Yükleyenin hazırladığı ve YouTube'un otomatik oluşturduğu altyazılar mp4 dosyasının içine konur; altyazısı olmayan videolar her zamanki gibi iner.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Klasörler") {
