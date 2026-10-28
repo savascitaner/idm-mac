@@ -639,7 +639,7 @@ enum DemoData {
         var dmg = rec(.file, "macOS-Tahoe-Installer.dmg", .downloading, 4_800_000_000)
         dmg.segments = segments(total: dmg.totalBytes, n: 8, done: [1, 0.82, 0.64, 0.9, 0.41, 1, 0.55, 0.3])
         dmg.connections = 8
-        var video = rec(.video, "Lo-fi müzik, 1 saat (1080p)", .downloading, 860_000_000)
+        var video = rec(.video, L("Lo-fi müzik, 1 saat (1080p)"), .downloading, 860_000_000)
         video.thumbnail = "https://i.ytimg.com/vi/jNQXAC9IVRw/hqdefault.jpg"
         video.receivedBytes = 310_000_000
         video.connections = 8
@@ -650,7 +650,7 @@ enum DemoData {
         var mp3 = rec(.file, "podcast-bolum-42.mp3", .completed, 64_000_000)
         mp3.completedAt = Date().addingTimeInterval(-120)
         var zip = rec(.file, "Fotograflar-2026.zip", .failed, 1_200_000_000)
-        zip.error = "Sunucu bağlantıyı kesti"
+        zip.error = L("Sunucu bağlantıyı kesti")
         dmg.receivedBytes = dmg.segments.reduce(0) { $0 + $1.done }
         iso.receivedBytes = iso.segments.reduce(0) { $0 + $1.done }
         m.downloads = [dmg, video, iso, zip, mp3, pdf]

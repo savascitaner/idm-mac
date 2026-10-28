@@ -285,6 +285,15 @@ EN = {
 "Biten": "Finished",
 "Yeni sürüm indiriliyor…": "Downloading the new version…",
 "İmza": "Signature",
+"Örnek Yazılım: Sürümler": "Sample Software: Releases",
+"Kullanım kılavuzu": "User guide",
+"Tanıtım videosu": "Intro video",
+"Ses paketi": "Sound pack",
+"Kaynak kodu": "Source code",
+"Ekran görüntüsü": "Screenshot",
+"İletişim": "Contact",
+"Lo-fi müzik, 1 saat (1080p)": "Lo-fi music, 1 hour (1080p)",
+"Sunucu bağlantıyı kesti": "The server closed the connection",
 }
 
 def esc(s):
