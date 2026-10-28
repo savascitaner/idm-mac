@@ -45,7 +45,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
             if let msg = SafariBridge.message(from: url) {
+                Log.write("safari", "extension message: \(msg["type"] as? String ?? "?") \(msg["url"] as? String ?? msg["pageUrl"] as? String ?? "")")
                 AppModel.shared.receive(msg)
+            } else if url.scheme == "idmmac" {
+                // A bridge link with the wrong token: the extension Safari runs is from another build.
+                Log.write("safari", "extension message rejected (token mismatch: an old copy of the extension is registered)")
             } else if url.scheme?.lowercased() == "magnet" {
                 AppModel.shared.receive(["type": "torrent", "url": url.absoluteString])
             } else if url.isFileURL, url.pathExtension.lowercased() == "torrent" {
