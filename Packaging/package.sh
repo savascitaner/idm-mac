@@ -30,6 +30,10 @@ COMMIT="${GITHUB_SHA:-dev}"
 fill() { sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" -e "s/__OWNER__/$OWNER/" -e "s/__TOKEN__/$TOKEN/" -e "s/__COMMIT__/$COMMIT/" "$1"; }
 fill Packaging/Info.plist > "$APP/Contents/Info.plist"
 cp -R Extension "$APP/Contents/Resources/ChromeExtension"
+# UI texts: the Turkish text in the code is the key, English comes from en.lproj.
+python3 Packaging/make_strings.py
+cp -R Packaging/lproj/en.lproj Packaging/lproj/tr.lproj "$APP/Contents/Resources/"
+plutil -lint "$APP/Contents/Resources/en.lproj/Localizable.strings" "$APP/Contents/Resources/tr.lproj/Localizable.strings"
 if [ -n "${EXTENSION_PEM:-}" ]; then
   echo "==> Chrome extension (signed CRX)"
   printf '%s\n' "$EXTENSION_PEM" > "$TMP/extension.pem"
@@ -50,7 +54,7 @@ swiftc -O -parse-as-library -application-extension -target arm64-apple-macos13.0
   Safari/Handler.swift -o "$APPEX/Contents/MacOS/IDMMacSafari"
 fill Safari/Info.plist > "$APPEX/Contents/Info.plist"
 cp Safari/Web/* "$APPEX/Contents/Resources/"
-cp -R Extension/content.js Extension/popup.html Extension/popup.js Extension/icons "$APPEX/Contents/Resources/"
+cp -R Extension/i18n.js Extension/content.js Extension/popup.html Extension/popup.js Extension/icons "$APPEX/Contents/Resources/"
 plutil -lint "$APP/Contents/Info.plist" "$APPEX/Contents/Info.plist"
 python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$APPEX/Contents/Resources/manifest.json"
 cp THIRD_PARTY.md "$APP/Contents/Resources/THIRD_PARTY.md"

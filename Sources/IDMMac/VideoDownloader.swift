@@ -79,7 +79,7 @@ enum YtDlp {
     /// Runs yt-dlp with the given arguments off the main thread; returns its stdout, or the error it printed.
     private static func run(_ args: [String], completion: @escaping (Result<Data, Error>) -> Void) {
         guard let exe = Tools.ytdlp else {
-            completion(.failure(Failure("yt-dlp bulunamadı")))
+            completion(.failure(Failure(L("yt-dlp bulunamadı"))))
             return
         }
         DispatchQueue.global(qos: .userInitiated).async {
@@ -104,7 +104,7 @@ enum YtDlp {
             p.waitUntilExit()
             let result: Result<Data, Error> = p.terminationStatus == 0
                 ? .success(data)
-                : .failure(Failure(lastLines(errData) ?? "Video bilgisi alınamadı"))
+                : .failure(Failure(lastLines(errData) ?? L("Video bilgisi alınamadı")))
             DispatchQueue.main.async { completion(result) }
         }
     }
@@ -115,7 +115,7 @@ enum YtDlp {
         run(commonArgs(cookieFile: cookieFile, headers: headers) + ["-J", url]) { r in
             completion(r.flatMap { data -> Result<VideoInfo, Error> in
                 if let info = parse(data, fallbackURL: url) { return .success(info) }
-                return .failure(Failure("Video bilgisi alınamadı"))
+                return .failure(Failure(L("Video bilgisi alınamadı")))
             })
         }
     }
@@ -126,7 +126,7 @@ enum YtDlp {
         run(commonArgs(cookieFile: cookieFile, headers: headers, playlist: true) + ["--flat-playlist", "-J", url]) { r in
             completion(r.flatMap { data -> Result<PlaylistInfo, Error> in
                 if let list = parsePlaylist(data) { return .success(list) }
-                return .failure(Failure("Oynatma listesi okunamadı"))
+                return .failure(Failure(L("Oynatma listesi okunamadı")))
             })
         }
     }

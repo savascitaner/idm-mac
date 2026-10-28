@@ -108,6 +108,7 @@
     </div>`;
   const btn = root.querySelector("button");
   const label = root.querySelector("span");
+  label.textContent = T("Bu videoyu indir");
   const wrap = root.querySelector(".wrap");
   const menu = root.querySelector(".menu");
 
@@ -179,7 +180,7 @@
 
   function resetLabel() {
     btn.className = "";
-    label.textContent = "Bu videoyu indir";
+    label.textContent = T("Bu videoyu indir");
   }
 
   // Which URL identifies this video for yt-dlp. Feeds and timelines contain many videos,
@@ -273,7 +274,7 @@
     menu.hidden = false;
     const known = infos.get(page);
     if (known) return render(known, v);
-    note("Kaliteler alınıyor…");
+    note(T("Kaliteler alınıyor…"));
     const src = v.currentSrc || v.src || "";
     chrome.runtime.sendMessage(
       { type: "probe", pageUrl: page, mediaUrl: src, referrer: window === top ? "" : document.referrer },
@@ -286,7 +287,7 @@
         if (res && res.ok && res.options && res.options.length) infos.set(page, res);
         if (menuPage !== page || menu.hidden) return;
         if (infos.has(page)) render(res, v);
-        else note("Seçenekler alınamadı. Butona tıklayıp uygulamada seçebilirsin.");
+        else note(T("Seçenekler alınamadı. Butona tıklayıp uygulamada seçebilirsin."));
       }
     );
   }
@@ -295,7 +296,7 @@
     const page = pageUrlFor(v);
     closeMenu();
     busy = true;
-    label.textContent = "Gönderiliyor…";
+    label.textContent = T("Gönderiliyor…");
     const src = v.currentSrc || v.src || "";
     chrome.runtime.sendMessage(
       { type: "grab", pageUrl: page, mediaUrl: src, title: document.title, option, track,
@@ -304,7 +305,7 @@
         void chrome.runtime.lastError;
         busy = false;
         btn.className = res && res.ok ? "done" : "err";
-        label.textContent = res && res.ok ? "İndirme başladı" : "Uygulama açılamadı";
+        label.textContent = res && res.ok ? T("İndirme başladı") : T("Uygulama açılamadı");
         setTimeout(resetLabel, 3000);
       }
     );
@@ -327,7 +328,7 @@
     if (!current || busy) return;
     closeMenu();
     busy = true;
-    label.textContent = "Gönderiliyor…";
+    label.textContent = T("Gönderiliyor…");
     const src = current.currentSrc || current.src || "";
     chrome.runtime.sendMessage(
       {
@@ -342,10 +343,10 @@
         busy = false;
         if (res && res.ok) {
           btn.className = "done";
-          label.textContent = "MDM'ye gönderildi";
+          label.textContent = T("MDM'ye gönderildi");
         } else {
           btn.className = "err";
-          label.textContent = "Uygulama açılamadı";
+          label.textContent = T("Uygulama açılamadı");
         }
         setTimeout(resetLabel, 3000);
       }

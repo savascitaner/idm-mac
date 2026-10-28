@@ -37,14 +37,14 @@ extension AppModel {
             let sum = Checksum.sha256(path: path)
             Task { @MainActor in
                 guard let sum else {
-                    AppModel.shared.notifyUser("SHA-256", "\(name) okunamadı.")
+                    AppModel.shared.notifyUser("SHA-256", L("%@ okunamadı.", name))
                     return
                 }
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(sum, forType: .string)
                 if let expected {
                     AppModel.shared.notifyUser(expected == sum ? "Sağlama toplamı eşleşti ✓" : "Sağlama toplamı EŞLEŞMEDİ ✗",
-                                               expected == sum ? name : "\(name): dosya bozuk ya da farklı olabilir.")
+                                               expected == sum ? name : L("%@: dosya bozuk ya da farklı olabilir.", name))
                 } else {
                     AppModel.shared.notifyUser("SHA-256 panoya kopyalandı", name)
                 }

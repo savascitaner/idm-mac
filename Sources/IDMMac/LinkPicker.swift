@@ -16,14 +16,14 @@ enum LinkGroup: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .video: return "Video"
-        case .music: return "Ses"
-        case .archive: return "Arşiv"
-        case .program: return "Program"
-        case .document: return "Belge"
-        case .image: return "Görsel"
-        case .torrent: return "Torrent"
-        case .other: return "Diğer"
+        case .video: return L("Video")
+        case .music: return L("Ses")
+        case .archive: return L("Arşiv")
+        case .program: return L("Program")
+        case .document: return L("Belge")
+        case .image: return L("Görsel")
+        case .torrent: return L("Torrent")
+        case .other: return L("Diğer")
         }
     }
 
@@ -82,7 +82,7 @@ final class LinkWindowController {
     func show(_ req: LinkRequest) {
         let view = LinkPickerView(request: req) { [weak self] in self?.close(req.id) }
         let w = NSPanel(contentViewController: NSHostingController(rootView: view))
-        w.title = "Sayfadaki linkler"
+        w.title = L("Sayfadaki linkler")
         w.styleMask = [.titled, .closable, .resizable, .utilityWindow]
         w.level = .floating
         w.isReleasedWhenClosed = false

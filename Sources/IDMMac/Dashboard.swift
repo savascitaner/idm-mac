@@ -60,7 +60,7 @@ struct StatCard<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label(title, systemImage: icon).font(.caption.bold()).foregroundStyle(tint)
+            Label(L(title), systemImage: icon).font(.caption.bold()).foregroundStyle(tint)
             content
         }
         .padding(12)
@@ -137,10 +137,10 @@ struct DashboardHeader: View {
             StatCard("Anlık hız", icon: "speedometer", tint: .accentColor) {
                 HStack(alignment: .bottom, spacing: 12) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(Format.speed(model.totalSpeed).isEmpty ? "0 B/sn" : Format.speed(model.totalSpeed))
+                        Text(Format.speed(model.totalSpeed).isEmpty ? "0 B" + L("/sn") : Format.speed(model.totalSpeed))
                             .font(.title2.bold().monospacedDigit())
                         let peak = model.speedHistory.max() ?? 0
-                        Text("son 1 dk en yüksek: " + (peak <= 1 ? "—" : Format.speed(peak)))
+                        Text(L("son 1 dk en yüksek: ") + (peak <= 1 ? "—" : Format.speed(peak)))
                             .font(.caption2).foregroundStyle(.secondary)
                     }
                     .fixedSize()
@@ -298,7 +298,7 @@ struct DownloadInspector: View {
                     Text("\(item.offset + 1)").font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
                         .frame(width: 20, alignment: .trailing)
                     ProgressView(value: fraction).tint(s.isComplete ? .green : tint)
-                    Text(s.isComplete ? "bitti" : String(format: "%%%.0f", fraction * 100))
+                    Text(s.isComplete ? L("bitti") : String(format: "%%%.0f", fraction * 100))
                         .font(.caption2.monospacedDigit()).foregroundStyle(s.isComplete ? .green : .secondary)
                         .frame(width: 36, alignment: .trailing)
                 }
@@ -315,21 +315,21 @@ struct DownloadInspector: View {
 
     private static func duration(_ t: TimeInterval) -> String {
         let s = max(0, Int(t))
-        if s >= 3600 { return String(format: "%d sa %02d dk", s / 3600, (s % 3600) / 60) }
-        if s >= 60 { return String(format: "%d dk %02d sn", s / 60, s % 60) }
-        return "\(s) sn"
+        if s >= 3600 { return String(format: L("%d sa %02d dk"), s / 3600, (s % 3600) / 60) }
+        if s >= 60 { return String(format: L("%d dk %02d sn"), s / 60, s % 60) }
+        return L("%lld sn", s)
     }
 
     private func section<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.subheadline.bold())
+            Text(L(title)).font(.subheadline.bold())
             content()
         }
     }
 
     private func info(_ key: String, _ value: String) -> some View {
         HStack(alignment: .top, spacing: 8) {
-            Text(key).foregroundStyle(.secondary).frame(width: 70, alignment: .leading)
+            Text(L(key)).foregroundStyle(.secondary).frame(width: 70, alignment: .leading)
             Text(value).textSelection(.enabled).lineLimit(3).truncationMode(.middle)
             Spacer(minLength: 0)
         }
@@ -425,7 +425,7 @@ struct MenuBarPanel: View {
             }
             .frame(width: 54, height: 54)
             VStack(alignment: .leading, spacing: 2) {
-                Text(model.activeCount > 0 ? Format.speed(model.totalSpeed) : "Hazır")
+                Text(model.activeCount > 0 ? Format.speed(model.totalSpeed) : L("Hazır"))
                     .font(.title3.bold().monospacedDigit())
                     .foregroundStyle(model.activeCount > 0 ? Color.accentColor : .secondary)
                 Text(summary).font(.caption.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
@@ -436,9 +436,9 @@ struct MenuBarPanel: View {
 
     private var summary: String {
         guard model.activeCount > 0 else {
-            return model.networkUp ? "Etkin indirme yok" : "Bağlantı yok, indirmeler bekliyor"
+            return model.networkUp ? L("Etkin indirme yok") : L("Bağlantı yok, indirmeler bekliyor")
         }
-        var parts = ["\(model.activeCount) indirme", Format.bytes(model.remainingBytes) + " kaldı"]
+        var parts = [L("%lld indirme", model.activeCount), L("%@ kaldı", Format.bytes(model.remainingBytes))]
         let eta = Format.eta(remaining: model.remainingBytes, speed: model.totalSpeed)
         if !eta.isEmpty { parts.append(eta) }
         return parts.joined(separator: " · ")
@@ -457,7 +457,7 @@ struct MenuBarPanel: View {
             }
             if let v = updater.available {
                 Button { updater.install() } label: {
-                    Label(updater.installing ? "Güncelleniyor…" : "Yeni sürüm var (\(v)), kur", systemImage: "arrow.down.app")
+                    Label(updater.installing ? L("Güncelleniyor…") : L("Yeni sürüm var (%@), kur", "\(v)"), systemImage: "arrow.down.app")
                 }
                 .controlSize(.small).disabled(updater.installing)
             }
@@ -468,7 +468,7 @@ struct MenuBarPanel: View {
     private var list: some View {
         let items: [DownloadRecord] = tab == 0 ? running : tab == 1 ? waiting : Array(finished.prefix(10))
         if items.isEmpty {
-            Text(tab == 0 ? "Etkin indirme yok" : tab == 1 ? "Bekleyen indirme yok" : "Henüz biten indirme yok")
+            Text(tab == 0 ? L("Etkin indirme yok") : tab == 1 ? L("Bekleyen indirme yok") : L("Henüz biten indirme yok"))
                 .font(.callout).foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, minHeight: 60)
         } else {
@@ -479,7 +479,7 @@ struct MenuBarPanel: View {
     }
 
     private var dropZone: some View {
-        Text(dropping ? "Bırak, indirmeye eklensin" : "Linki ya da .torrent dosyasını buraya bırak")
+        Text(dropping ? L("Bırak, indirmeye eklensin") : L("Linki ya da .torrent dosyasını buraya bırak"))
             .font(.caption).foregroundStyle(dropping ? Color.accentColor : .secondary)
             .frame(maxWidth: .infinity).padding(8)
             .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -576,8 +576,8 @@ struct MenuBarRow: View {
     }
 
     private var left: String {
-        if d.state == .paused { return "Duraklatıldı · " + Format.bytes(d.receivedBytes) }
-        if d.state == .queued { return model.networkUp ? "Sırada" : "Bağlantı bekleniyor" }
+        if d.state == .paused { return L("Duraklatıldı") + " · " + Format.bytes(d.receivedBytes) }
+        if d.state == .queued { return model.networkUp ? L("Sırada") : L("Bağlantı bekleniyor") }
         return d.totalBytes > 0 ? "\(Format.bytes(d.receivedBytes)) / \(Format.bytes(d.totalBytes))" : Format.bytes(d.receivedBytes)
     }
 
@@ -595,7 +595,7 @@ struct MenuBarRow: View {
                 Button { model.pause(d.id) } label: { Image(systemName: "pause.circle.fill") }.help("Duraklat")
             case .paused, .failed:
                 Button { model.resume(d.id) } label: { Image(systemName: "play.circle.fill") }
-                    .help(d.state == .failed ? "Tekrar dene" : "Sürdür")
+                    .help(d.state == .failed ? L("Tekrar dene") : L("Sürdür"))
             case .completed:
                 if let f = d.finalPath {
                     Button { NSWorkspace.shared.open(URL(fileURLWithPath: f)) } label: { Image(systemName: "arrow.up.forward.circle.fill") }
@@ -639,7 +639,7 @@ enum DemoData {
         var dmg = rec(.file, "macOS-Tahoe-Installer.dmg", .downloading, 4_800_000_000)
         dmg.segments = segments(total: dmg.totalBytes, n: 8, done: [1, 0.82, 0.64, 0.9, 0.41, 1, 0.55, 0.3])
         dmg.connections = 8
-        var video = rec(.video, "Lo-fi müzik, 1 saat (1080p)", .downloading, 860_000_000)
+        var video = rec(.video, L("Lo-fi müzik, 1 saat (1080p)"), .downloading, 860_000_000)
         video.thumbnail = "https://i.ytimg.com/vi/jNQXAC9IVRw/hqdefault.jpg"
         video.receivedBytes = 310_000_000
         video.connections = 8
@@ -650,7 +650,7 @@ enum DemoData {
         var mp3 = rec(.file, "podcast-bolum-42.mp3", .completed, 64_000_000)
         mp3.completedAt = Date().addingTimeInterval(-120)
         var zip = rec(.file, "Fotograflar-2026.zip", .failed, 1_200_000_000)
-        zip.error = "Sunucu bağlantıyı kesti"
+        zip.error = L("Sunucu bağlantıyı kesti")
         dmg.receivedBytes = dmg.segments.reduce(0) { $0 + $1.done }
         iso.receivedBytes = iso.segments.reduce(0) { $0 + $1.done }
         m.downloads = [dmg, video, iso, zip, mp3, pdf]

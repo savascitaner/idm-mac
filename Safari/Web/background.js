@@ -1,6 +1,8 @@
 // MDM Safari extension. Safari has no downloads API, so download links are caught in the page
 // (capture.js) and everything goes to the app through the extension's native handler.
 
+if (typeof importScripts === "function") importScripts("i18n.js");
+
 const api = typeof browser !== "undefined" ? browser : chrome;
 const APP = "com.savascitaner.idmmac";
 
@@ -122,9 +124,9 @@ api.runtime.onMessage.addListener((msg, sender, reply) => {
 
 api.runtime.onInstalled.addListener(() => {
   api.contextMenus.removeAll(() => {
-    api.contextMenus.create({ id: "idm-link", title: "MDM ile indir", contexts: ["link", "image", "audio"] });
-    api.contextMenus.create({ id: "idm-video", title: "Bu videoyu MDM ile indir", contexts: ["video", "page", "frame"] });
-    api.contextMenus.create({ id: "idm-all", title: "Sayfadaki tüm linkleri MDM ile indir…", contexts: ["page"] });
+    api.contextMenus.create({ id: "idm-link", title: T("MDM ile indir"), contexts: ["link", "image", "audio"] });
+    api.contextMenus.create({ id: "idm-video", title: T("Bu videoyu MDM ile indir"), contexts: ["video", "page", "frame"] });
+    api.contextMenus.create({ id: "idm-all", title: T("Sayfadaki tüm linkleri MDM ile indir…"), contexts: ["page"] });
   });
 });
 

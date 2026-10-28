@@ -474,14 +474,18 @@ def main():
         subprocess.run(["osascript", "-e", 'quit app "MDM"'], timeout=30)
         time.sleep(3)
         shots = (Path.cwd() / "dist/shots").resolve()
-        subprocess.run(["open", "-n", str(APP), "--args", "--demo", "--snapshots", str(shots)], timeout=30)
-        for _ in range(60):
-            if (shots / "done").exists():
-                break
-            time.sleep(2)
-        print("snapshots:", sorted(p.name for p in shots.glob("*.png")))
-        subprocess.run(["osascript", "-e", 'quit app "MDM"'], timeout=30)
-        if list(shots.glob("*.png")):
+        for lang in ("tr", "en"):
+            out = shots / lang
+            subprocess.run(["open", "-n", str(APP), "--args", "-AppleLanguages", f"({lang})", "-appLanguage", lang,
+                            "--demo", "--snapshots", str(out)], timeout=30)
+            for _ in range(60):
+                if (out / "done").exists():
+                    break
+                time.sleep(2)
+            print(f"snapshots {lang}:", sorted(p.name for p in out.glob("*.png")))
+            subprocess.run(["osascript", "-e", 'quit app "MDM"'], timeout=30)
+            time.sleep(3)
+        if list(shots.glob("*/*.png")):
             subprocess.run(["zip", "-qr", str((Path.cwd() / "dist/shots.zip").resolve()), "."], cwd=shots, timeout=60)
     except Exception as e:  # noqa: BLE001
         print("snapshots failed:", e)

@@ -1,0 +1,8 @@
+{
+  "description": {
+    "message": "İndirmeleri ve videoları MDM uygulamasına gönderir."
+  },
+  "commandVideo": {
+    "message": "Bu sayfadaki videoyu MDM ile indir"
+  }
+}

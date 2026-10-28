@@ -290,7 +290,7 @@ final class AppModel: ObservableObject {
         for l in links {
             addFile(url: l.url, headers: req.headers, cookies: Self.cookies(req.cookies, for: l.url), quiet: true)
         }
-        notifyUser("İndirmeler sıraya alındı", "\(req.title.isEmpty ? req.pageURL : req.title): \(links.count) dosya")
+        notifyUser("İndirmeler sıraya alındı", L("%@: %lld dosya", req.title.isEmpty ? req.pageURL : req.title, links.count))
     }
 
     static func cookieHeader(_ cookies: [BrowserCookie]) -> String {
@@ -362,7 +362,7 @@ final class AppModel: ObservableObject {
             insertVideo(url: e.url, title: e.title, thumbnail: e.thumbnail ?? "https://i.ytimg.com/vi/\(e.id)/hqdefault.jpg",
                         option: option, track: track, directory: dir.path, index: i + 1, headers: headers, cookies: cookies)
         }
-        notifyUser("Oynatma listesi sıraya alındı", "\(list.title): \(count) video")
+        notifyUser("Oynatma listesi sıraya alındı", L("%@: %lld video", list.title, count))
         pump()
     }
 
@@ -524,7 +524,7 @@ final class AppModel: ObservableObject {
                 downloads[i].safariMirror = partial
                 downloads[i].state = .downloading
                 downloads[i].error = nil
-                downloads[i].note = "Safari indiriyor (sunucu MDM'ye vermedi: \(msg))"
+                downloads[i].note = L("Safari indiriyor (sunucu MDM'ye vermedi: %@)", msg)
                 downloads[i].speed = 0
                 downloads[i].receivedBytes = 0
                 downloads[i].totalBytes = -1
@@ -608,7 +608,7 @@ final class AppModel: ObservableObject {
                 notifyUser("İndirme tamamlandı", name, category: NotificationHandler.doneCategory, downloadID: id)
             } else {
                 downloads[i].state = .failed
-                downloads[i].error = "Safari indirmeyi tamamlamadan bıraktı (dosya bulunamadı)"
+                downloads[i].error = L("Safari indirmeyi tamamlamadan bıraktı (dosya bulunamadı)")
                 downloads[i].note = nil
                 Log.download("Safari's download is gone without a finished file: \(partial)")
             }
@@ -813,8 +813,8 @@ final class AppModel: ObservableObject {
     func notifyUser(_ title: String, _ body: String, category: String? = nil, downloadID: UUID? = nil) {
         guard notify else { return }
         let c = UNMutableNotificationContent()
-        c.title = title
-        c.body = body
+        c.title = L(title)
+        c.body = L(body)
         if let category { c.categoryIdentifier = category }
         if let downloadID { c.userInfo = ["id": downloadID.uuidString] }
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil))

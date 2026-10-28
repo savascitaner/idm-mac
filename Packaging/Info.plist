@@ -3,6 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleDevelopmentRegion</key><string>tr</string>
+    <key>CFBundleLocalizations</key><array><string>tr</string><string>en</string></array>
     <key>CFBundleExecutable</key><string>IDMMac</string>
     <key>CFBundleIdentifier</key><string>com.savascitaner.idmmac</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>

@@ -42,7 +42,7 @@ final class Updater: ObservableObject {
         UserDefaults.standard.set(mine, forKey: key)
         if !previous.isEmpty, previous != mine {
             Log.update("updated from \(previous.prefix(7)) to \(mine.prefix(7))")
-            AppModel.shared.notifyUser("MDM güncellendi", "Yeni sürüme geçildi (\(mine.prefix(7)))")
+            AppModel.shared.notifyUser("MDM güncellendi", L("Yeni sürüme geçildi (%@)", String(mine.prefix(7))))
         }
     }
 
@@ -61,19 +61,19 @@ final class Updater: ObservableObject {
             await performCheck()
             let alert = NSAlert()
             if let available {
-                alert.messageText = "Yeni sürüm var (\(available))"
-                alert.informativeText = "Şimdi kurulsun mu? MDM kapanıp yeniden açılır; sürmekte olan indirmeler kaldığı yerden devam eder."
-                alert.addButton(withTitle: "Güncelle ve yeniden aç")
-                alert.addButton(withTitle: "Sonra")
+                alert.messageText = L("Yeni sürüm var (%@)", available)
+                alert.informativeText = L("Şimdi kurulsun mu? MDM kapanıp yeniden açılır; sürmekte olan indirmeler kaldığı yerden devam eder.")
+                alert.addButton(withTitle: L("Güncelle ve yeniden aç"))
+                alert.addButton(withTitle: L("Sonra"))
                 MainWindow.present(alert) { [weak self] answer in
                     if answer == .alertFirstButtonReturn { self?.install() }
                 }
-            } else if status.hasPrefix("Güncel") {
-                alert.messageText = "MDM güncel"
-                alert.informativeText = "Uygulamanız en son sürümde (\(Self.currentCommit.prefix(7)))."
+            } else if status.hasPrefix(L("Güncel")) {
+                alert.messageText = L("MDM güncel")
+                alert.informativeText = L("Uygulamanız en son sürümde (%@).", String(Self.currentCommit.prefix(7)))
                 MainWindow.present(alert) { _ in }
             } else {
-                alert.messageText = "Güncelleme denetlenemedi"
+                alert.messageText = L("Güncelleme denetlenemedi")
                 alert.informativeText = status
                 MainWindow.present(alert) { _ in }
             }
@@ -91,11 +91,11 @@ final class Updater: ObservableObject {
 
     private func performCheck() async {
         guard Self.isReleaseBuild else {
-            status = "Bu bir geliştirici derlemesi; güncelleme denetlenmiyor"
+            status = L("Bu bir geliştirici derlemesi; güncelleme denetlenmiyor")
             return
         }
         guard !installing else { return }
-        status = "Denetleniyor…"
+        status = L("Denetleniyor…")
         // The release is deleted and recreated while a build publishes, so a missing one gets a second try.
         var lastCode = 0
         for attempt in 0..<3 {
@@ -116,12 +116,12 @@ final class Updater: ObservableObject {
                 let mine = Self.currentCommit
                 if sha.hasPrefix(mine) || mine.hasPrefix(sha) {
                     available = nil
-                    status = "Güncel (\(mine.prefix(7)))"
+                    status = L("Güncel") + " (\(mine.prefix(7)))"
                     return
                 }
                 available = String(sha.prefix(7))
                 dmgURL = dmg.flatMap { URL(string: $0) }
-                status = "Yeni sürüm var (\(sha.prefix(7)))"
+                status = L("Yeni sürüm var (%@)", String(sha.prefix(7)))
                 if notified != sha {
                     notified = sha
                     Log.update("new version \(sha.prefix(7)) found (running \(mine.prefix(7)))")
@@ -132,7 +132,7 @@ final class Updater: ObservableObject {
                 scheduleAutoInstall()
                 return
             } catch {
-                status = "Denetlenemedi: \(error.localizedDescription)"
+                status = L("Denetlenemedi: %@", error.localizedDescription)
                 return
             }
         }
@@ -163,7 +163,7 @@ final class Updater: ObservableObject {
     func install(auto: Bool = false) {
         guard let dmgURL, !installing else { return }
         installing = true
-        status = "Yeni sürüm indiriliyor…"
+        status = L("Yeni sürüm indiriliyor…")
         Task {
             let fm = FileManager.default
             let work = fm.temporaryDirectory.appendingPathComponent("mdm-update-\(UUID().uuidString)", isDirectory: true)
@@ -179,10 +179,10 @@ final class Updater: ObservableObject {
                     // An automatic attempt only notes it, so a window does not pop up every few hours.
                     if auto { self.autoBlocked = true } else { NSWorkspace.shared.open(dmg) }
                     self.installing = false
-                    self.status = "MDM bu klasörde kendini güncelleyemiyor; açılan pencereden MDM'yi Uygulamalar'a sürükle"
+                    self.status = L("MDM bu klasörde kendini güncelleyemiyor; açılan pencereden MDM'yi Uygulamalar'a sürükle")
                     return
                 }
-                self.status = "Kuruluyor…"
+                self.status = L("Kuruluyor…")
                 let mount = work.appendingPathComponent("mnt", isDirectory: true)
                 let newApp = work.appendingPathComponent("MDM.app", isDirectory: true)
                 try await Self.run("/usr/bin/hdiutil", ["attach", dmg.path, "-nobrowse", "-readonly", "-noautoopen",
@@ -203,7 +203,7 @@ final class Updater: ObservableObject {
                 try? fm.removeItem(at: work)
                 self.installing = false
                 Log.update("update failed: \(error.localizedDescription)")
-                self.status = "Güncellenemedi: \(error.localizedDescription)"
+                self.status = L("Güncellenemedi: %@", error.localizedDescription)
             }
         }
     }

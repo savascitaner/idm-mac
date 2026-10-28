@@ -52,18 +52,18 @@ enum Snapshots {
     }
 
     private static let sampleLinks: [String: Any] = [
-        "pageUrl": "https://ornek.com/indirmeler", "title": "Örnek Yazılım: Sürümler",
+        "pageUrl": "https://ornek.com/indirmeler", "title": L("Örnek Yazılım: Sürümler"),
         "items": [
             ["url": "https://ornek.com/dl/ornek-2.4.0-arm64.dmg", "text": "macOS (Apple Silicon)"],
             ["url": "https://ornek.com/dl/ornek-2.4.0-x64.dmg", "text": "macOS (Intel)"],
             ["url": "https://ornek.com/dl/ornek-2.4.0-win.zip", "text": "Windows"],
-            ["url": "https://ornek.com/dl/kullanim-kilavuzu.pdf", "text": "Kullanım kılavuzu"],
-            ["url": "https://ornek.com/dl/tanitim.mp4", "text": "Tanıtım videosu"],
-            ["url": "https://ornek.com/dl/ses-paketi.mp3", "text": "Ses paketi"],
-            ["url": "https://ornek.com/dl/kaynak.tar.gz", "text": "Kaynak kodu"],
-            ["url": "https://ornek.com/ekran-1.png", "text": "Ekran görüntüsü"],
-            ["url": "https://ornek.com/hakkinda", "text": "Hakkında"],
-            ["url": "https://ornek.com/iletisim", "text": "İletişim"],
+            ["url": "https://ornek.com/dl/kullanim-kilavuzu.pdf", "text": L("Kullanım kılavuzu")],
+            ["url": "https://ornek.com/dl/tanitim.mp4", "text": L("Tanıtım videosu")],
+            ["url": "https://ornek.com/dl/ses-paketi.mp3", "text": L("Ses paketi")],
+            ["url": "https://ornek.com/dl/kaynak.tar.gz", "text": L("Kaynak kodu")],
+            ["url": "https://ornek.com/ekran-1.png", "text": L("Ekran görüntüsü")],
+            ["url": "https://ornek.com/hakkinda", "text": L("Hakkında")],
+            ["url": "https://ornek.com/iletisim", "text": L("İletişim")],
         ],
     ]
 }

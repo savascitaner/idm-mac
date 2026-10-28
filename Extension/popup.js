@@ -9,19 +9,20 @@ function fmt(n) {
 }
 
 async function main() {
+  translateDom(document.body);
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
   chrome.runtime.sendMessage({ type: "status" }, (s) => {
     const dot = $("dot"), t = $("statusText");
     if (!s || !s.host) {
       dot.className = "dot bad";
-      t.textContent = "Uygulama kurulu değil";
+      t.textContent = T("Uygulama kurulu değil");
     } else if (!s.app) {
       dot.className = "dot warn";
-      t.textContent = "Uygulama kapalı (gerekince açılır)";
+      t.textContent = T("Uygulama kapalı (gerekince açılır)");
     } else {
       dot.className = "dot ok";
-      t.textContent = "Bağlı · v" + (s.version || "");
+      t.textContent = T("Bağlı · v") + (s.version || "");
     }
   });
 
@@ -46,15 +47,15 @@ async function main() {
 
   $("pageVideo").addEventListener("click", () => {
     chrome.runtime.sendMessage({ type: "video", pageUrl: tab.url, title: tab.title }, (r) => {
-      $("pageVideo").textContent = r && r.ok ? "Gönderildi ✓" : "Uygulama açılamadı";
+      $("pageVideo").textContent = r && r.ok ? T("Gönderildi ✓") : T("Uygulama açılamadı");
       setTimeout(() => window.close(), 900);
     });
   });
 
   $("allLinks").addEventListener("click", () => {
-    $("allLinks").textContent = "Gönderiliyor…";
+    $("allLinks").textContent = T("Gönderiliyor…");
     chrome.runtime.sendMessage({ type: "allLinks", tabId: tab.id }, (r) => {
-      $("allLinks").textContent = r && r.ok ? "MDM'de açıldı ✓" : "Linkler alınamadı";
+      $("allLinks").textContent = r && r.ok ? T("MDM'de açıldı ✓") : T("Linkler alınamadı");
       setTimeout(() => window.close(), 900);
     });
   });
@@ -72,7 +73,7 @@ async function main() {
     for (const m of list.slice().reverse()) {
       const li = document.createElement("li");
       const name = decodeURIComponent(new URL(m.url).pathname.split("/").pop() || m.url);
-      li.innerHTML = `<span></span><small></small><button class="ghost">İndir</button>`;
+      li.innerHTML = `<span></span><small></small><button class="ghost">${T("İndir")}</button>`;
       li.querySelector("span").textContent = name;
       li.querySelector("span").title = m.url;
       li.querySelector("small").textContent = [m.kind, fmt(m.size)].filter(Boolean).join(" · ");

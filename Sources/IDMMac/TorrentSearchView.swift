@@ -48,7 +48,7 @@ struct TorrentSearchView: View {
             if results.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "magnifyingglass").font(.system(size: 34)).foregroundStyle(.tertiary)
-                    Text(searching ? "Aranıyor…" : searched ? "Sonuç bulunamadı" : "Aramak istediğini yaz")
+                    Text(searching ? L("Aranıyor…") : searched ? L("Sonuç bulunamadı") : L("Aramak istediğini yaz"))
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -89,7 +89,7 @@ struct TorrentSearchView: View {
                 Button { NSWorkspace.shared.open(u) } label: { Image(systemName: "safari") }
                     .buttonStyle(.borderless).help("Sayfasını aç")
             }
-            Button(added.contains(r.id) ? "Eklendi" : "İndir") {
+            Button(added.contains(r.id) ? L("Eklendi") : L("İndir")) {
                 model.addTorrent(r.link, name: r.title, pageURL: r.page)
                 added.insert(r.id)
             }

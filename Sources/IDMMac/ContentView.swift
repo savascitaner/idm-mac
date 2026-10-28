@@ -62,7 +62,7 @@ struct ContentView: View {
                     if model.downloads.isEmpty {
                         EmptyState(showExtensionHelp: $showExtensionHelp)
                     } else if filtered.isEmpty {
-                        Text(query.isEmpty ? "Bu bölümde indirme yok" : "Aramayla eşleşen indirme yok").foregroundStyle(.secondary)
+                        Text(query.isEmpty ? L("Bu bölümde indirme yok") : L("Aramayla eşleşen indirme yok")).foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         List(selection: $selection) {
@@ -104,7 +104,7 @@ struct ContentView: View {
             }
             Divider()
             HStack {
-                Text(model.activeCount > 0 ? "\(model.activeCount) etkin indirme · \(Format.speed(model.totalSpeed))" : "Hazır")
+                Text(model.activeCount > 0 ? L("%lld etkin indirme · %@", model.activeCount, Format.speed(model.totalSpeed)) : L("Hazır"))
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 if model.browsersLinked.isEmpty {
@@ -192,23 +192,23 @@ struct DownloadRow: View {
 
     private var statusLine: String {
         switch record.state {
-        case .queued: return "Sırada"
+        case .queued: return L("Sırada")
         case .downloading:
             var parts = ["\(Format.bytes(record.receivedBytes)) / \(Format.bytes(record.totalBytes))"]
             if record.totalBytes > 0 { parts.append(String(format: "%%%.0f", record.progress * 100)) }
             let sp = Format.speed(record.speed)
             if !sp.isEmpty { parts.append(sp) }
             let eta = Format.eta(remaining: record.totalBytes - record.receivedBytes, speed: record.speed)
-            if !eta.isEmpty { parts.append("kalan \(eta)") }
+            if !eta.isEmpty { parts.append(L("kalan %@", eta)) }
             if record.kind == .torrent {
-                parts.append(record.note ?? "\(record.connections) eş")
+                parts.append(record.note ?? L("%lld eş", record.connections))
             } else if record.connections > 1 {
-                parts.append("\(record.connections) bağlantı")
+                parts.append(L("%lld bağlantı", record.connections))
             }
             return parts.joined(separator: " · ")
-        case .paused: return "Duraklatıldı · \(Format.bytes(record.receivedBytes)) / \(Format.bytes(record.totalBytes))"
-        case .completed: return "Tamamlandı · \(Format.bytes(record.totalBytes))"
-        case .failed: return "Hata: \(record.error ?? "bilinmiyor")"
+        case .paused: return L("Duraklatıldı") + " · \(Format.bytes(record.receivedBytes)) / \(Format.bytes(record.totalBytes))"
+        case .completed: return L("Tamamlandı") + " · \(Format.bytes(record.totalBytes))"
+        case .failed: return L("Hata: %@", record.error ?? L("bilinmiyor"))
         }
     }
 
@@ -323,11 +323,11 @@ struct ExtensionHelpSheet: View {
                     SFSafariApplication.showPreferencesForExtension(withIdentifier: SafariBridge.extensionID) { _ in }
                 }
                 Button("Uzantı listede yok mu? Yeniden kaydet") {
-                    safariReport = "Kaydediliyor…"
+                    safariReport = L("Kaydediliyor…")
                     DispatchQueue.global().async {
                         let r = SafariBridge.registerExtension()
                         DispatchQueue.main.async {
-                            safariReport = r + "\nSafari'yi Cmd+Q ile tamamen kapat, yeniden aç, sonra Ayarlar > Uzantılar'a bak."
+                            safariReport = r + "\n" + L("Safari'yi Cmd+Q ile tamamen kapat, yeniden aç, sonra Ayarlar > Uzantılar'a bak.")
                         }
                     }
                 }
@@ -351,7 +351,7 @@ struct ExtensionHelpSheet: View {
     private var chrome: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Tarayıcı eklentisini kur").font(.title3.bold())
-            Label(model.chromeConnected ? "Eklenti bağlı, kurulum tamam" : "Eklenti henüz bağlanmadı",
+            Label(model.chromeConnected ? L("Eklenti bağlı, kurulum tamam") : L("Eklenti henüz bağlanmadı"),
                   systemImage: model.chromeConnected ? "checkmark.circle.fill" : "circle.dashed")
                 .foregroundStyle(model.chromeConnected ? .green : .orange)
             let installed = HostInstaller.installedBrowsers()
@@ -406,8 +406,8 @@ struct ExtensionHelpSheet: View {
                 }
             }
             Text(model.browsersLinked.isEmpty
-                 ? "Uyarı: Tarayıcı profili bulunamadı. Tarayıcıyı bir kez açıp bu uygulamayı yeniden başlat."
-                 : "Bağlanan tarayıcılar: " + model.browsersLinked.joined(separator: ", "))
+                 ? L("Uyarı: Tarayıcı profili bulunamadı. Tarayıcıyı bir kez açıp bu uygulamayı yeniden başlat.")
+                 : L("Bağlanan tarayıcılar: ") + model.browsersLinked.joined(separator: ", "))
                 .font(.caption).foregroundStyle(model.browsersLinked.isEmpty ? .orange : .secondary)
         }
     }
@@ -422,14 +422,14 @@ struct NoticeBar: View {
     var body: some View {
         VStack(spacing: 0) {
             if let v = updater.available {
-                bar("arrow.down.app.fill", .blue, "MDM'nin yeni sürümü hazır (\(v)).") {
-                    Button(updater.installing ? "Kuruluyor…" : "Güncelle ve yeniden aç") { updater.install() }
+                bar("arrow.down.app.fill", .blue, L("MDM'nin yeni sürümü hazır (%@).", "\(v)")) {
+                    Button(updater.installing ? L("Kuruluyor…") : L("Güncelle ve yeniden aç")) { updater.install() }
                         .disabled(updater.installing)
                 }
             }
             if scheduleOn, !Schedule.allowsNow, model.queuedCount > 0 {
                 bar("clock.fill", .orange,
-                    "\(model.queuedCount) indirme zamanlayıcıyı bekliyor, saat \(Schedule.clock(Schedule.start)) olunca başlayacak.") {
+                    L("%lld indirme zamanlayıcıyı bekliyor, saat %@ olunca başlayacak.", model.queuedCount, Schedule.clock(Schedule.start))) {
                     Button("Zamanlayıcıyı kapat") { scheduleOn = false; model.pump() }
                 }
             }
