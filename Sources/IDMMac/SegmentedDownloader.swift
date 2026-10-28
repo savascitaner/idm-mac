@@ -35,6 +35,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
     private var supportsRanges = false
     private var taskSegment: [Int: Int] = [:]      // taskIdentifier -> segment index
     private var probeTaskID: Int?
+    private var probedWithoutRange = false
     private var finishedTasks = Set<Int>()         // tasks we cancelled on purpose
     private var retries: [Int: Int] = [:]          // segment index -> retry count
     private var stopped = false
@@ -103,12 +104,14 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         var req = URLRequest(url: url)
         for (k, v) in record.headers where !v.isEmpty { req.setValue(v, forHTTPHeaderField: k) }
         if let range { req.setValue(range, forHTTPHeaderField: "Range") }
+        // CFNetwork's own "MDM/1 CFNetwork/…" makes some file hosts answer 403; look like Safari instead.
+        if req.value(forHTTPHeaderField: "User-Agent") == nil { req.setValue(SafariWatcher.userAgent, forHTTPHeaderField: "User-Agent") }
         req.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
         return req
     }
 
     private func probe() {
-        guard let req = request(range: "bytes=0-0"), let task = session?.dataTask(with: req) else {
+        guard let req = request(range: probedWithoutRange ? nil : "bytes=0-0"), let task = session?.dataTask(with: req) else {
             fail("Geçersiz adres")
             return
         }
@@ -119,7 +122,15 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
     private func handleProbe(_ response: URLResponse) {
         let http = response as? HTTPURLResponse
         let status = http?.statusCode ?? 200
+        if status >= 400, !probedWithoutRange, ![404, 410].contains(status) {
+            // Some servers refuse a "bytes=0-0" request but give the whole file to a plain one.
+            Log.download("probe with Range got HTTP \(status), retrying without Range: \(record.url)")
+            probedWithoutRange = true
+            probe()
+            return
+        }
         if status >= 400 {
+            Log.download("probe failed: HTTP \(status) for \(record.url)")
             fail("Sunucu hatası: HTTP \(status)")
             return
         }

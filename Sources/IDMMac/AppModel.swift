@@ -298,7 +298,8 @@ final class AppModel: ObservableObject {
     // MARK: Adding
 
     func addFile(url: String, fileName: String = "", headers: [String: String] = [:], cookies: [BrowserCookie] = [],
-                 browserMime: String? = nil, originalURL: String? = nil, fallback: String? = nil, quiet: Bool = false) {
+                 browserMime: String? = nil, originalURL: String? = nil, fallback: String? = nil, quiet: Bool = false,
+                 safariPartial: String? = nil) {
         var h = headers
         if !cookies.isEmpty { h["Cookie"] = Self.cookieHeader(cookies) }
         if TorrentDownloader.isTorrent(url: url, fileName: fileName, mime: browserMime) {
@@ -312,7 +313,9 @@ final class AppModel: ObservableObject {
         rec.browserMime = browserMime
         rec.originalURL = originalURL
         rec.browserFallback = fallback.flatMap { $0.isEmpty ? nil : $0 }
+        rec.safariPartial = safariPartial
         downloads.insert(rec, at: 0)
+        Log.download("added: \(url) (from: \(safariPartial != nil ? "Safari takeover" : fallback == "safari" ? "Safari extension" : "browser/app"))")
         if !quiet { notifyUser("İndirme başladı", name.isEmpty ? url : name) }
         pump()
     }
@@ -466,6 +469,7 @@ final class AppModel: ObservableObject {
         case .progress(let s):
             guard downloads[i].state == .downloading else { return }
             merge(s)
+            if downloads[i].safariPartial != nil { safariTakeoverStarted(at: i) }
         case .completed(let s):
             merge(s)
             downloads[i].state = .completed
@@ -480,15 +484,41 @@ final class AppModel: ObservableObject {
             checkAllDone()
         case .failed(var msg, let s):
             merge(s)
-            if downloads[i].browserFallback == "safari",
-               msg == SegmentedDownloader.htmlInsteadOfFile || msg.hasPrefix("Sunucu hatası") {
-                // A guessed link that is a web page, or a file the server only gives with Safari's
-                // cookies: open it in Safari again (which then downloads it itself) and forget it.
+            if let partial = downloads[i].safariPartial {
+                // MDM couldn't fetch a download Safari started. Safari's copy was left alone, so Safari
+                // goes on with it; the entry stays in the list and says why.
+                Log.download("Safari takeover refused: \(downloads[i].url): \(msg); Safari keeps \(partial)")
+                SafariWatcher.shared.log("MDM alamadı (\(msg)), Safari devam ediyor: \(downloads[i].url)")
+                if let t = downloads[i].tempPath { try? FileManager.default.removeItem(atPath: t) }
+                downloads[i].safariPartial = nil
+                downloads[i].tempPath = nil
+                downloads[i].segments = []
+                downloads[i].state = .failed
+                downloads[i].error = msg + "; indirmeye Safari devam ediyor"
+                downloads[i].speed = 0
+                finished(id)
+                notifyUser("Bu indirmeyi Safari yapıyor", "\(downloads[i].fileName): \(msg)",
+                           category: NotificationHandler.failedCategory, downloadID: id)
+                return
+            }
+            if downloads[i].browserFallback == "safari", msg == SegmentedDownloader.htmlInsteadOfFile {
+                // A guessed link that turned out to be a web page: open it in Safari again and forget it.
+                Log.download("guessed link is a page, back to Safari: \(downloads[i].url)")
                 if let t = downloads[i].tempPath { try? FileManager.default.removeItem(atPath: t) }
                 Self.openInSafari(downloads[i].originalURL ?? downloads[i].url)
                 downloads.remove(at: i)
                 finished(id)
                 return
+            }
+            if downloads[i].browserFallback == "safari", msg.hasPrefix("Sunucu hatası") {
+                // The server refused MDM (it wants something only Safari has): let Safari download it,
+                // but keep the entry so the list shows what happened instead of the download vanishing.
+                Log.download("server refused MDM, back to Safari: \(downloads[i].url): \(msg)")
+                if let t = downloads[i].tempPath { try? FileManager.default.removeItem(atPath: t) }
+                Self.openInSafari(downloads[i].originalURL ?? downloads[i].url)
+                downloads[i].tempPath = nil
+                downloads[i].segments = []
+                msg += "; indirme Safari'ye geri verildi"
             }
             if msg == SegmentedDownloader.htmlInsteadOfFile, downloads[i].browserMime != nil {
                 // Like IDM: if we can't fetch it, let the browser download it after all.
@@ -506,6 +536,25 @@ final class AppModel: ObservableObject {
             notifyUser("İndirme başarısız", "\(downloads[i].fileName): \(msg)", category: NotificationHandler.failedCategory, downloadID: id)
             checkAllDone()
         }
+    }
+
+    /// MDM's first request for a download Safari started worked: remove Safari's partial copy so only
+    /// MDM downloads it. If Safari already finished it, MDM's copy is the duplicate and goes instead.
+    private func safariTakeoverStarted(at i: Int) {
+        guard let partial = downloads[i].safariPartial else { return }
+        downloads[i].safariPartial = nil
+        let fm = FileManager.default
+        if fm.fileExists(atPath: partial) {
+            try? fm.removeItem(atPath: partial)
+            SafariWatcher.shared.log("devralındı, Safari'nin kopyası silindi: \(downloads[i].url)")
+            return
+        }
+        SafariWatcher.shared.log("Safari indirmeyi MDM başlamadan bitirdi, MDM kopyası iptal: \(downloads[i].url)")
+        let id = downloads[i].id
+        fileEngines[id]?.pause()
+        if let t = downloads[i].tempPath { try? fm.removeItem(atPath: t) }
+        downloads.remove(at: i)
+        finished(id)
     }
 
     static func openInSafari(_ s: String) {
