@@ -70,6 +70,7 @@ final class AppModel: ObservableObject {
             let linked = HostInstaller.install()
             if !demo { HostInstaller.withdrawExtensionOffer() }
             _ = HostInstaller.exportExtension()
+            _ = HostInstaller.exportFirefoxExtension()
             _ = Tools.ytdlp
             Tools.updateYtdlpIfNeeded()
             if !demo { Task { @MainActor in AppModel.shared.browsersLinked = linked } }

@@ -362,6 +362,23 @@ struct ExtensionHelpSheet: View {
                 }
                 .buttonStyle(.borderedProminent)
             }
+            if HostInstaller.firefoxInstalled {
+                VStack(alignment: .leading, spacing: 6) {
+                    Button {
+                        _ = HostInstaller.exportFirefoxExtension()
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(Paths.firefoxExtensionDir.appendingPathComponent("manifest.json").path, forType: .string)
+                        let p = Process()
+                        p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+                        p.arguments = ["-a", "Firefox", "about:debugging#/runtime/this-firefox"]
+                        try? p.run()
+                    } label: {
+                        Label("Firefox: hata ayıklama sayfasını aç ve manifest yolunu kopyala", systemImage: "flame")
+                    }
+                    Text("Firefox'ta **Geçici Eklenti Yükle**'ye bas, **Cmd + Shift + G**, **Cmd + V**, **Enter** ile manifest.json'u seç. Geçici eklenti Firefox kapanınca silinir; kalıcı kurulum için imzalı sürüm hazırlanıyor.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
             VStack(alignment: .leading, spacing: 8) {
                 Text("Düğme tarayıcıyı eklenti sayfasında açar ve klasör yolunu panoya kopyalar. Geriye üç tıklama kalır:")
                 Text("1. Sağ üstteki **Geliştirici modu** anahtarını aç.")
