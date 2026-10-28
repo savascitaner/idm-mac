@@ -132,7 +132,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
             return
         }
         if status >= 400 {
-            Log.download("probe failed: HTTP \(status) for \(record.url)")
+            Log.download("probe failed: HTTP \(status) \(Self.describe(record, response: http))")
             fail("Sunucu hatası: HTTP \(status)")
             return
         }
@@ -171,6 +171,26 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         guard openFile() else { return }
         if total > 0 { try? fileHandle?.truncate(atOffset: UInt64(total)) }
         launchPending()
+    }
+
+    /// What the log needs to see why a server said no: the address without its secret values, the headers
+    /// MDM sent, and the answer's headers (never cookies' values).
+    static func describe(_ record: DownloadRecord, response: HTTPURLResponse?) -> String {
+        var out = ""
+        if let u = URL(string: record.url) {
+            let names = URLComponents(url: u, resolvingAgainstBaseURL: false)?.queryItems?.map(\.name).joined(separator: ",") ?? ""
+            out += "\(u.scheme ?? "")://\(u.host ?? "")\(u.path) query[\(names)]"
+        }
+        out += " sent[\(record.headers.keys.sorted().joined(separator: ","))]"
+        if let h = response?.allHeaderFields {
+            let shown = h.compactMap { k, v -> String? in
+                let key = "\(k)"
+                if key.lowercased() == "set-cookie" { return key + "=…" }
+                return "\(key)=\(String("\(v)".prefix(120)))"
+            }.sorted()
+            out += " answer[\(shown.joined(separator: "; "))]"
+        }
+        return out
     }
 
     private func planSegments() {
