@@ -93,6 +93,11 @@ final class SafariWatcher: ObservableObject {
             }
             return
         }
+        // The "where from" tag (page URL) can land a moment after Info.plist; wait for it briefly.
+        if referrer == nil, tries < 5 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { self.take(path, tries: tries + 1) }
+            return
+        }
         guard url.hasPrefix("http://") || url.hasPrefix("https://") else { return log("http değil: \(url)") }
         if let t = handedBack[url], t.timeIntervalSinceNow > -600 { return log("Safari'ye geri verilmişti: \(url)") }
         let name = String(URL(fileURLWithPath: path).lastPathComponent.dropLast(".download".count))

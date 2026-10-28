@@ -269,12 +269,12 @@ def main():
     sdir = Path.home() / "Downloads" / "safari-test.bin.download"
     sdir.mkdir(parents=True, exist_ok=True)
     surl = url + ("&" if "?" in url else "?") + "safari=1"
-    plistlib.dump({"DownloadEntryURL": surl, "DownloadEntryPath": str(sdir)}, open(sdir / "Info.plist", "wb"))
     # Safari tags its partial file with [download URL, page URL]; the page becomes the Referer.
     part = sdir / "safari-test.bin"
     part.write_bytes(b"")
     froms = plistlib.dumps([surl, "https://example.com/page"], fmt=plistlib.FMT_BINARY).hex()
     subprocess.run(["xattr", "-wx", "com.apple.metadata:kMDItemWhereFroms", froms, str(part)], check=True)
+    plistlib.dump({"DownloadEntryURL": surl, "DownloadEntryPath": str(sdir)}, open(sdir / "Info.plist", "wb"))
     deadline = time.time() + 30
     taken = None
     while time.time() < deadline and (not taken or sdir.exists()):
