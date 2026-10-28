@@ -67,6 +67,8 @@ final class ClipboardWatcher {
 final class NotificationHandler: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationHandler()
     static let clipCategory = "MDM_CLIP"
+    static let doneCategory = "MDM_DONE"
+    static let failedCategory = "MDM_FAILED"
 
     static func register() {
         let center = UNUserNotificationCenter.current()
@@ -74,6 +76,13 @@ final class NotificationHandler: NSObject, UNUserNotificationCenterDelegate {
         let download = UNNotificationAction(identifier: "download", title: "İndir", options: [])
         center.setNotificationCategories([
             UNNotificationCategory(identifier: clipCategory, actions: [download], intentIdentifiers: [], options: []),
+            UNNotificationCategory(identifier: doneCategory, actions: [
+                UNNotificationAction(identifier: "open", title: "Aç", options: []),
+                UNNotificationAction(identifier: "reveal", title: "Finder'da göster", options: []),
+            ], intentIdentifiers: [], options: []),
+            UNNotificationCategory(identifier: failedCategory, actions: [
+                UNNotificationAction(identifier: "retry", title: "Tekrar dene", options: []),
+            ], intentIdentifiers: [], options: []),
         ])
     }
 
@@ -97,7 +106,12 @@ final class NotificationHandler: NSObject, UNUserNotificationCenterDelegate {
         let content = response.notification.request.content
         let action = response.actionIdentifier
         let url = content.userInfo["url"] as? String
+        let downloadID = (content.userInfo["id"] as? String).flatMap { UUID(uuidString: $0) }
         completionHandler()
+        if let downloadID {
+            Task { @MainActor in AppModel.shared.handleNotificationAction(action, downloadID: downloadID) }
+            return
+        }
         guard content.categoryIdentifier == Self.clipCategory, let url,
               action == "download" || action == UNNotificationDefaultActionIdentifier else { return }
         Task { @MainActor in AppModel.shared.addFromUserInput(url) }
