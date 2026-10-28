@@ -4,7 +4,11 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
-        Self.clearQuarantine()
+        // These can take seconds on a first start; the window must not wait for them.
+        DispatchQueue.global(qos: .utility).async {
+            Self.clearQuarantine()
+            _ = SignatureInfo.developer
+        }
         if let i = CommandLine.arguments.firstIndex(of: "--search-test"), i + 1 < CommandLine.arguments.count {
             // Used by the CI smoke test: run the torrent search once, print what came back, quit.
             let q = CommandLine.arguments[i + 1]
@@ -27,7 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Once the user has allowed the app ("Yine de Aç"), drop the quarantine flag from the whole bundle
     /// so the bundled tools and the Safari extension run without further prompts and no Terminal step is needed.
-    static func clearQuarantine() {
+    nonisolated static func clearQuarantine() {
         let path = Bundle.main.bundlePath
         guard getxattr(path, "com.apple.quarantine", nil, 0, 0, 0) >= 0 else { return }
         let p = Process()
@@ -56,11 +60,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         TorrentService.shared.stop()
     }
 
-    /// Clicking the Dock icon brings the window back, also when it was minimised to the Dock.
+    /// Clicking the Dock icon brings the main window back, whether it was minimised or closed.
+    /// The menu bar panel counts as a window for AppKit, so `hasVisibleWindows` cannot be trusted here.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        for w in NSApp.windows where w.isMiniaturized { w.deminiaturize(nil) }
-        NSApp.activate(ignoringOtherApps: true)
-        return true
+        Log.window("dock reopen (AppKit says visible windows: \(flag), main window found: \(MainWindow.window != nil))")
+        MainWindow.show()
+        // With no main window to show, let SwiftUI open one as well.
+        return MainWindow.window == nil
     }
 
     // Keep running in the menu bar when the window is closed, like IDM in the tray.
@@ -92,13 +98,28 @@ struct IDMMacApp: App {
         MenuBarExtra {
             MenuBarPanel().environmentObject(model)
         } label: {
-            Image(systemName: model.activeCount > 0 ? "arrow.down.circle.fill" : "arrow.down.circle")
+            MenuBarLabel(model: model)
         }
         .menuBarExtraStyle(.window)
 
         Settings {
             SettingsView().environmentObject(model)
         }
+    }
+}
+
+/// The menu bar icon. It lives as long as the app, so it can open the main window again after it was closed.
+struct MenuBarLabel: View {
+    @ObservedObject var model: AppModel
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Image(systemName: model.activeCount > 0 ? "arrow.down.circle.fill" : "arrow.down.circle")
+            .onReceive(NotificationCenter.default.publisher(for: .openMainWindow)) { _ in
+                Log.window("opening a new main window")
+                openWindow(id: "main")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { MainWindow.window?.makeKeyAndOrderFront(nil) }
+            }
     }
 }
 

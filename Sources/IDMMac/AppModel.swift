@@ -62,12 +62,16 @@ final class AppModel: ObservableObject {
             Task { @MainActor in AppModel.shared.handle(msg) }
         }
         server?.start()
-        let linked = HostInstaller.install()
-        if !isDemo { HostInstaller.withdrawExtensionOffer() }
-        if !isDemo { browsersLinked = linked }
-        _ = HostInstaller.exportExtension()
-        _ = Tools.ytdlp
-        Tools.updateYtdlpIfNeeded()
+        // File work (host registration, extension copy, first yt-dlp copy) runs off the main thread.
+        let demo = isDemo
+        DispatchQueue.global(qos: .utility).async {
+            let linked = HostInstaller.install()
+            if !demo { HostInstaller.withdrawExtensionOffer() }
+            _ = HostInstaller.exportExtension()
+            _ = Tools.ytdlp
+            Tools.updateYtdlpIfNeeded()
+            if !demo { Task { @MainActor in AppModel.shared.browsersLinked = linked } }
+        }
         NotificationHandler.register()
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
         saveTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
@@ -491,6 +495,7 @@ final class AppModel: ObservableObject {
                 }
                 if let t = downloads[i].tempPath { try? FileManager.default.removeItem(atPath: t) }
             }
+            Log.download("failed: \(downloads[i].fileName.isEmpty ? downloads[i].url : downloads[i].fileName): \(msg)")
             downloads[i].state = .failed
             downloads[i].error = msg
             downloads[i].speed = 0
@@ -646,13 +651,6 @@ final class AppModel: ObservableObject {
         c.title = title
         c.body = body
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil))
-    }
-
-    func bringToFront() {
-        NSApp.activate(ignoringOtherApps: true)
-        if let w = NSApp.windows.first(where: { $0.identifier?.rawValue.contains("main") ?? false }) {
-            w.makeKeyAndOrderFront(nil)
-        }
     }
 
     // MARK: Persistence

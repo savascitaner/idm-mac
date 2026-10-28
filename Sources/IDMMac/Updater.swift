@@ -16,6 +16,11 @@ final class Updater: ObservableObject {
     private var dmgURL: URL?
     private var notified: String?
     private var started = false
+    private var autoPending = false
+    private var autoBlocked = false
+
+    /// Install new versions by itself when no download is running (Settings can switch this off).
+    static var autoInstall: Bool { UserDefaults.standard.object(forKey: "autoInstallUpdate") as? Bool ?? true }
 
     /// The commit this build was made from (filled in by package.sh).
     static var currentCommit: String { Bundle.main.object(forInfoDictionaryKey: "MDMCommit") as? String ?? "" }
@@ -24,12 +29,26 @@ final class Updater: ObservableObject {
     func start() {
         guard !started else { return }
         started = true
+        announceUpdateDone()
         loop()
+    }
+
+    /// After a self-update the new copy tells once that it is the new version.
+    private func announceUpdateDone() {
+        let key = "lastRunCommit"
+        let mine = Self.currentCommit
+        guard Self.isReleaseBuild else { return }
+        let previous = UserDefaults.standard.string(forKey: key) ?? ""
+        UserDefaults.standard.set(mine, forKey: key)
+        if !previous.isEmpty, previous != mine {
+            Log.update("updated from \(previous.prefix(7)) to \(mine.prefix(7))")
+            AppModel.shared.notifyUser("MDM güncellendi", "Yeni sürüme geçildi (\(mine.prefix(7)))")
+        }
     }
 
     private func loop() {
         if UserDefaults.standard.object(forKey: "autoUpdateCheck") as? Bool ?? true { check() }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 6 * 3600) { [weak self] in self?.loop() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2 * 3600) { [weak self] in self?.loop() }
     }
 
     func check() {
@@ -41,21 +60,22 @@ final class Updater: ObservableObject {
         Task {
             await performCheck()
             let alert = NSAlert()
-            NSApp.activate(ignoringOtherApps: true)
             if let available {
                 alert.messageText = "Yeni sürüm var (\(available))"
                 alert.informativeText = "Şimdi kurulsun mu? MDM kapanıp yeniden açılır; sürmekte olan indirmeler kaldığı yerden devam eder."
                 alert.addButton(withTitle: "Güncelle ve yeniden aç")
                 alert.addButton(withTitle: "Sonra")
-                if alert.runModal() == .alertFirstButtonReturn { install() }
+                MainWindow.present(alert) { [weak self] answer in
+                    if answer == .alertFirstButtonReturn { self?.install() }
+                }
             } else if status.hasPrefix("Güncel") {
                 alert.messageText = "MDM güncel"
                 alert.informativeText = "Uygulamanız en son sürümde (\(Self.currentCommit.prefix(7)))."
-                alert.runModal()
+                MainWindow.present(alert) { _ in }
             } else {
                 alert.messageText = "Güncelleme denetlenemedi"
                 alert.informativeText = status
-                alert.runModal()
+                MainWindow.present(alert) { _ in }
             }
         }
     }
@@ -104,8 +124,12 @@ final class Updater: ObservableObject {
                 status = "Yeni sürüm var (\(sha.prefix(7)))"
                 if notified != sha {
                     notified = sha
-                    AppModel.shared.notifyUser("MDM için yeni sürüm var", "Ayarlar'dan ya da ana penceredeki düğmeyle kurabilirsin.")
+                    Log.update("new version \(sha.prefix(7)) found (running \(mine.prefix(7)))")
+                    if !Self.autoInstall {
+                        AppModel.shared.notifyUser("MDM için yeni sürüm var", "Ayarlar'dan ya da ana penceredeki düğmeyle kurabilirsin.")
+                    }
                 }
+                scheduleAutoInstall()
                 return
             } catch {
                 status = "Denetlenemedi: \(error.localizedDescription)"
@@ -117,8 +141,26 @@ final class Updater: ObservableObject {
             : "Sürüm bilgisi okunamadı (GitHub yanıtı \(lastCode))"
     }
 
+    /// Installs a found update on its own, but only while no download is running; otherwise it asks again later.
+    private func scheduleAutoInstall() {
+        guard Self.autoInstall, available != nil, !installing, !autoPending, !autoBlocked else { return }
+        autoPending = true
+        attemptAutoInstall()
+    }
+
+    private func attemptAutoInstall() {
+        guard Self.autoInstall, available != nil, !installing, !autoBlocked else { autoPending = false; return }
+        if AppModel.shared.downloads.contains(where: { $0.isActive }) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 300) { [weak self] in self?.attemptAutoInstall() }
+            return
+        }
+        autoPending = false
+        Log.update("installing \(available ?? "") automatically")
+        install(auto: true)
+    }
+
     /// Downloads the DMG, copies MDM.app out of it, and swaps it in once MDM has quit.
-    func install() {
+    func install(auto: Bool = false) {
         guard let dmgURL, !installing else { return }
         installing = true
         status = "Yeni sürüm indiriliyor…"
@@ -134,7 +176,8 @@ final class Updater: ObservableObject {
                 let parent = (dest as NSString).deletingLastPathComponent
                 guard !dest.contains("/AppTranslocation/"), !dest.hasPrefix("/Volumes/"), fm.isWritableFile(atPath: parent) else {
                     // MDM runs from somewhere it can't replace itself (the DMG, a read-only folder): open the DMG instead.
-                    NSWorkspace.shared.open(dmg)
+                    // An automatic attempt only notes it, so a window does not pop up every few hours.
+                    if auto { self.autoBlocked = true } else { NSWorkspace.shared.open(dmg) }
                     self.installing = false
                     self.status = "MDM bu klasörde kendini güncelleyemiyor; açılan pencereden MDM'yi Uygulamalar'a sürükle"
                     return
@@ -159,6 +202,7 @@ final class Updater: ObservableObject {
             } catch {
                 try? fm.removeItem(at: work)
                 self.installing = false
+                Log.update("update failed: \(error.localizedDescription)")
                 self.status = "Güncellenemedi: \(error.localizedDescription)"
             }
         }
