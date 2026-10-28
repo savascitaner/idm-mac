@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MDM - Mac Download Manager",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "İndirmeleri ve videoları MDM uygulamasına gönderir.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlVijISGjEs/keDFtS7/dkctIqOi2+f22pgz8d8j1n2WMSZXWn2/Yyd3uL/Xcz6HNbsNQYC/N3pFQOYhhzN6xYwXDkszHmQxBY4jZ4rdhP7CMd9qkyAnmnC+GcS4cJrvIkUBhO/5X9TgEMKr/MVMiLqLJAdRSLEDoL1e663vVbjA+dBy8430a11ITA9X9uewMDXI8nLFbS9SHxH9NpuiPIjXvD+OXdxl9vV8GsCM/SX51LKVciv2oezNPuR9LlPam1TrgzNT3m7tFxPnvfSGHUfFXj6dhNpg7+xF1DQJvDrIwhvXS6/7fLEikzc9CmhWQmupBZSL+BLDbz+vBy6HhZQIDAQAB",
   "minimum_chrome_version": "116",

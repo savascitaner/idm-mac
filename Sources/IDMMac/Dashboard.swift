@@ -65,8 +65,7 @@ struct StatCard<Content: View>: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: 12).fill(tint.opacity(0.07)))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(tint.opacity(0.18), lineWidth: 1))
+        .mdmGlass(cornerRadius: 12, tint: tint)
     }
 }
 
@@ -164,6 +163,10 @@ struct DashboardHeader: View {
         }
         .frame(height: 100)
         .padding(12)
+        .background(
+            LinearGradient(colors: [Color.accentColor.opacity(0.14), Color.purple.opacity(0.08), .clear],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+        )
     }
 }
 
@@ -190,7 +193,7 @@ struct DiskCard: View {
             Text("Toplam \(Format.bytes(model.diskTotal))").font(.caption2).foregroundStyle(.secondary)
         }
         .padding(10)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.08)))
+        .mdmGlass(cornerRadius: 10)
     }
 }
 
@@ -383,19 +386,65 @@ struct MenuBarPanel: View {
     @AppStorage("slowModeKB") private var slowModeKB = 256
     @AppStorage("afterAll") private var afterAll = Schedule.AfterAll.none.rawValue
     @ObservedObject private var updater = Updater.shared
+    @State private var tab = 0
+    @State private var dropping = false
+
+    private var running: [DownloadRecord] { model.downloads.filter { $0.state == .downloading || $0.state == .paused } }
+    private var waiting: [DownloadRecord] { model.downloads.filter { $0.state == .queued } }
+    private var finished: [DownloadRecord] {
+        model.downloads.filter { $0.state == .completed }
+            .sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
+    }
 
     var body: some View {
-        let items = Array(model.downloads.filter { $0.isActive || $0.state == .paused }.prefix(5))
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 22, height: 22)
-                Text("MDM").font(.headline)
-                Spacer()
-                Text(model.activeCount > 0 ? Format.speed(model.totalSpeed) : "Hazır")
-                    .font(.callout.bold().monospacedDigit())
-                    .foregroundStyle(model.activeCount > 0 ? Color.accentColor : .secondary)
+            header
+            Sparkline(samples: model.speedHistory).frame(height: 36)
+            Picker("", selection: $tab) {
+                Text("Etkin \(running.count)").tag(0)
+                Text("Bekleyen \(waiting.count)").tag(1)
+                Text("Biten \(finished.count)").tag(2)
             }
-            Sparkline(samples: model.speedHistory).frame(height: 40)
+            .pickerStyle(.segmented).labelsHidden()
+            options
+            list
+            dropZone
+            footer
+        }
+        .padding(14)
+        .frame(width: 360)
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                ProgressRing(progress: model.overallProgress ?? 0, lineWidth: 6)
+                Text(model.overallProgress.map { String(format: "%%%.0f", $0 * 100) } ?? "—")
+                    .font(.system(size: 12, weight: .bold, design: .rounded).monospacedDigit())
+            }
+            .frame(width: 54, height: 54)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.activeCount > 0 ? Format.speed(model.totalSpeed) : "Hazır")
+                    .font(.title3.bold().monospacedDigit())
+                    .foregroundStyle(model.activeCount > 0 ? Color.accentColor : .secondary)
+                Text(summary).font(.caption.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer()
+        }
+    }
+
+    private var summary: String {
+        guard model.activeCount > 0 else {
+            return model.networkUp ? "Etkin indirme yok" : "Bağlantı yok, indirmeler bekliyor"
+        }
+        var parts = ["\(model.activeCount) indirme", Format.bytes(model.remainingBytes) + " kaldı"]
+        let eta = Format.eta(remaining: model.remainingBytes, speed: model.totalSpeed)
+        if !eta.isEmpty { parts.append(eta) }
+        return parts.joined(separator: " · ")
+    }
+
+    private var options: some View {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 Toggle(isOn: $slowMode) { Label("Yavaş mod (\(slowModeKB) KB/sn)", systemImage: "tortoise") }
                     .toggleStyle(.button).controlSize(.small)
@@ -411,43 +460,156 @@ struct MenuBarPanel: View {
                 }
                 .controlSize(.small).disabled(updater.installing)
             }
-            if items.isEmpty {
-                Text("Etkin indirme yok").font(.callout).foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var list: some View {
+        let items: [DownloadRecord] = tab == 0 ? running : tab == 1 ? waiting : Array(finished.prefix(10))
+        if items.isEmpty {
+            Text(tab == 0 ? "Etkin indirme yok" : tab == 1 ? "Bekleyen indirme yok" : "Henüz biten indirme yok")
+                .font(.callout).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, minHeight: 60)
+        } else {
+            VStack(spacing: 6) {
+                ForEach(items.prefix(tab == 2 ? 10 : 6)) { d in MenuBarRow(d: d) }
+            }
+        }
+    }
+
+    private var dropZone: some View {
+        Text(dropping ? "Bırak, indirmeye eklensin" : "Linki ya da .torrent dosyasını buraya bırak")
+            .font(.caption).foregroundStyle(dropping ? Color.accentColor : .secondary)
+            .frame(maxWidth: .infinity).padding(8)
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(dropping ? Color.accentColor : Color.secondary.opacity(0.35), style: StrokeStyle(lineWidth: 1.2, dash: [4, 3])))
+            .onDrop(of: [.url, .plainText], isTargeted: $dropping) { providers in Self.handleDrop(providers) }
+    }
+
+    private var footer: some View {
+        HStack(spacing: 14) {
+            Button { MainWindow.show() } label: { Label("Pencere", systemImage: "macwindow") }
+            Button {
+                if let s = NSPasteboard.general.string(forType: .string) { model.addFromUserInput(s) }
+            } label: { Label("Panodan", systemImage: "doc.on.clipboard") }
+            Spacer()
+            if model.activeCount > 0 {
+                Button { model.pauseAll() } label: { Image(systemName: "pause.fill") }.help("Tümünü duraklat")
             } else {
-                ForEach(items) { d in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 6) {
-                            FileThumb(record: d, size: 18)
-                            Text(d.fileName.isEmpty ? d.url : d.fileName).font(.callout).lineLimit(1).truncationMode(.middle)
-                            Spacer()
-                            Text(d.state == .paused ? "duraklatıldı" : d.totalBytes > 0 ? String(format: "%%%.0f", d.progress * 100) : "…")
-                                .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                Button { model.resumeAll() } label: { Image(systemName: "play.fill") }.help("Tümünü sürdür")
+            }
+            Button { AboutPanel.show() } label: { Image(systemName: "info.circle") }.help("Hakkında")
+            Button { NSApp.terminate(nil) } label: { Image(systemName: "power") }.help("Çık")
+        }
+        .buttonStyle(.borderless)
+    }
+
+    /// Links, magnet text and .torrent files dropped on the panel.
+    private static func handleDrop(_ providers: [NSItemProvider]) -> Bool {
+        for p in providers {
+            if p.canLoadObject(ofClass: URL.self) {
+                _ = p.loadObject(ofClass: URL.self) { url, _ in
+                    guard let url else { return }
+                    Task { @MainActor in
+                        if url.isFileURL {
+                            AppModel.shared.receive(["type": "torrent", "url": url.path])
+                        } else {
+                            AppModel.shared.addFromUserInput(url.absoluteString)
                         }
-                        SegmentBar(record: d, tint: d.state == .paused ? .gray : Category.of(d).color, height: 5)
                     }
                 }
+                return true
             }
-            Divider()
-            HStack(spacing: 14) {
-                Button {
-                    MainWindow.show()
-                } label: { Label("Pencere", systemImage: "macwindow") }
-                Button {
-                    if let s = NSPasteboard.general.string(forType: .string) { model.addFromUserInput(s) }
-                } label: { Label("Panodan", systemImage: "doc.on.clipboard") }
-                Spacer()
-                if model.activeCount > 0 {
-                    Button { model.pauseAll() } label: { Image(systemName: "pause.fill") }.help("Tümünü duraklat")
-                } else {
-                    Button { model.resumeAll() } label: { Image(systemName: "play.fill") }.help("Tümünü sürdür")
+            if p.canLoadObject(ofClass: String.self) {
+                _ = p.loadObject(ofClass: String.self) { text, _ in
+                    guard let text else { return }
+                    Task { @MainActor in AppModel.shared.addFromUserInput(text) }
                 }
-                Button { AboutPanel.show() } label: { Image(systemName: "info.circle") }.help("Hakkında")
-                Button { NSApp.terminate(nil) } label: { Image(systemName: "power") }.help("Çık")
+                return true
             }
-            .buttonStyle(.borderless)
         }
-        .padding(14)
-        .frame(width: 340)
+        return false
+    }
+}
+
+/// One download in the menu bar panel: thumbnail, progress map, numbers and the buttons that matter.
+struct MenuBarRow: View {
+    let d: DownloadRecord
+    @EnvironmentObject var model: AppModel
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            FileThumb(record: d, size: 30)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(d.fileName.isEmpty ? d.url : d.fileName)
+                    .font(.callout.weight(.semibold)).lineLimit(1).truncationMode(.middle)
+                if d.state == .completed {
+                    Text(d.totalBytes > 0 ? Format.bytes(d.totalBytes) : Format.bytes(d.receivedBytes))
+                        .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                } else {
+                    SegmentBar(record: d, tint: tint, height: 5)
+                    HStack {
+                        Text(left)
+                        Spacer()
+                        Text(right)
+                    }
+                    .font(.caption2.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            controls
+        }
+        .padding(8)
+        .contentShape(Rectangle())
+        .onTapGesture { MainWindow.show() }
+        .onHover { hovering = $0 }
+        .mdmGlass(cornerRadius: 10, tint: hovering ? tint : nil)
+    }
+
+    private var tint: Color {
+        switch d.state {
+        case .paused: return .gray
+        case .failed: return .red
+        default: return Category.of(d).color
+        }
+    }
+
+    private var left: String {
+        if d.state == .paused { return "Duraklatıldı · " + Format.bytes(d.receivedBytes) }
+        if d.state == .queued { return model.networkUp ? "Sırada" : "Bağlantı bekleniyor" }
+        return d.totalBytes > 0 ? "\(Format.bytes(d.receivedBytes)) / \(Format.bytes(d.totalBytes))" : Format.bytes(d.receivedBytes)
+    }
+
+    private var right: String {
+        guard d.state == .downloading else { return "" }
+        let eta = Format.eta(remaining: max(0, d.totalBytes - d.receivedBytes), speed: d.speed)
+        return [Format.speed(d.speed), eta].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    @ViewBuilder
+    private var controls: some View {
+        HStack(spacing: 6) {
+            switch d.state {
+            case .downloading, .queued:
+                Button { model.pause(d.id) } label: { Image(systemName: "pause.circle.fill") }.help("Duraklat")
+            case .paused, .failed:
+                Button { model.resume(d.id) } label: { Image(systemName: "play.circle.fill") }
+                    .help(d.state == .failed ? "Tekrar dene" : "Sürdür")
+            case .completed:
+                if let f = d.finalPath {
+                    Button { NSWorkspace.shared.open(URL(fileURLWithPath: f)) } label: { Image(systemName: "arrow.up.forward.circle.fill") }
+                        .help("Aç")
+                    Button { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: f)]) } label: { Image(systemName: "magnifyingglass.circle.fill") }
+                        .help("Finder'da göster")
+                }
+            }
+            if d.state != .completed {
+                Button { model.remove(d.id) } label: { Image(systemName: "xmark.circle.fill") }.help("İptal")
+            }
+        }
+        .buttonStyle(.borderless)
+        .font(.title3)
+        .foregroundStyle(.secondary)
     }
 }
 

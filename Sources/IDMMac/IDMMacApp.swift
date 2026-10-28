@@ -112,9 +112,17 @@ struct IDMMacApp: App {
 struct MenuBarLabel: View {
     @ObservedObject var model: AppModel
     @Environment(\.openWindow) private var openWindow
+    @AppStorage("menuBarInfo") private var info = "icon"
 
     var body: some View {
-        Image(systemName: model.activeCount > 0 ? "arrow.down.circle.fill" : "arrow.down.circle")
+        HStack(spacing: 4) {
+            Image(systemName: model.activeCount > 0 ? "arrow.down.circle.fill" : "arrow.down.circle")
+            if model.activeCount > 0, info == "speed" {
+                Text(Format.speed(model.totalSpeed)).monospacedDigit()
+            } else if model.activeCount > 0, info == "percent", let p = model.overallProgress {
+                Text(String(format: "%%%.0f", p * 100)).monospacedDigit()
+            }
+        }
             .onReceive(NotificationCenter.default.publisher(for: .openMainWindow)) { _ in
                 Log.window("opening a new main window")
                 openWindow(id: "main")
