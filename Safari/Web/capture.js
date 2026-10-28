@@ -21,6 +21,9 @@
 
   // Hosts whose links are always files (Discord attachments come with ?ex=…&hm=… after the name).
   const FILE_HOSTS = /(^|\.)(cdn\.discordapp\.com|media\.discordapp\.net|attachments\.discordapp\.net)$/i;
+  // Sites that only answer a request made by their own page (an authorized origin, the page's cookies):
+  // MDM would get HTTP 503 and the link can't be opened again from outside the page, so Safari downloads these itself.
+  const SAFARI_ONLY_HOSTS = /(^|\.)(opensubtitles\.(com|org)|subdl\.com|yifysubtitles\.[a-z]+|subscene\.[a-z]+)$/i;
   const PAGE_EXTS = new Set(["", "html", "htm", "php", "asp", "aspx", "jsp", "cgi"]);
   const DOWNLOAD_WORDS = /download|indir|i̇ndir|herunterladen|télécharger|descargar|scarica/i;
 
@@ -52,6 +55,7 @@
       return false;
     }
     if (!/^https?:$/.test(u.protocol)) return false;
+    if (SAFARI_ONLY_HOSTS.test(u.hostname)) return false;
     let last = u.pathname.split("/").pop();
     try {
       last = decodeURIComponent(last);
