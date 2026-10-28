@@ -132,9 +132,19 @@ if [ -n "${SIGN_ID:-}" ] && [ -n "${NOTARY_APPLE_ID:-}" ]; then
       exit 1
     fi
   }
+  # Stapling asks Apple's CloudKit for the ticket; the runner's connection to it drops now and then
+  # ("network connection was lost", error 68) although notarization was accepted. Try a few times.
+  staple() {
+    for i in 1 2 3 4 5; do
+      xcrun stapler staple "$1" && return 0
+      echo "staple attempt $i of $1 failed, retrying" >&2
+      sleep $((i * 10))
+    done
+    return 1
+  }
   ditto -c -k --keepParent "$APP" "$TMP/MDM.zip"
   notarize "$TMP/MDM.zip"
-  xcrun stapler staple "$APP"
+  staple "$APP"
   xcrun stapler validate "$APP"
 fi
 
@@ -181,7 +191,7 @@ if [ -n "${SIGN_ID:-}" ] && [ -z "${INSTALLER_ID:-}" ]; then
 elif [ -n "${INSTALLER_ID:-}" ] && [ -n "${NOTARY_APPLE_ID:-}" ]; then
   echo "==> Notarizing the installer"
   notarize dist/MDM.pkg
-  xcrun stapler staple dist/MDM.pkg
+  staple dist/MDM.pkg
 fi
 echo "==> dist/MDM.pkg"
 echo "==> dist/MDM.dmg"
