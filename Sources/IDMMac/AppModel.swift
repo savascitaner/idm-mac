@@ -414,11 +414,25 @@ final class AppModel: ObservableObject {
         guard Schedule.allowsNow, networkUp else { return updateSleepAssertion() }
         let running = downloads.filter { $0.state == .downloading && $0.safariMirror == nil }.count
         var slots = max(1, maxParallel) - running
-        for i in downloads.indices.reversed() where slots > 0 && downloads[i].state == .queued {
+        // Higher priority first, then the oldest.
+        let waiting = downloads.indices.filter { downloads[$0].state == .queued }
+            .sorted { a, b in
+                let pa = downloads[a].priority ?? 0, pb = downloads[b].priority ?? 0
+                return pa != pb ? pa > pb : downloads[a].createdAt < downloads[b].createdAt
+            }
+        for i in waiting where slots > 0 {
             start(at: i)
             slots -= 1
         }
         updateSleepAssertion()
+    }
+
+    /// Moves a download to the front (or, with `front: false`, to the back) of the waiting queue.
+    func setPriority(_ id: UUID, front: Bool) {
+        guard let i = downloads.firstIndex(where: { $0.id == id }) else { return }
+        let all = downloads.map { $0.priority ?? 0 }
+        downloads[i].priority = front ? (all.max() ?? 0) + 1 : (all.min() ?? 0) - 1
+        pump()
     }
 
     private func start(at i: Int) {

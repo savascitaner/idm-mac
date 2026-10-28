@@ -137,6 +137,10 @@ struct ContentView: View {
         }
         if d.isActive { Button("Duraklat") { model.pause(d.id) } }
         if d.state == .paused || d.state == .failed { Button("Sürdür") { model.resume(d.id) } }
+        if d.state == .queued {
+            Button("Sıranın başına al") { model.setPriority(d.id, front: true) }
+            Button("Sıranın sonuna at") { model.setPriority(d.id, front: false) }
+        }
         Button("Adresi kopyala") {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(d.url, forType: .string)

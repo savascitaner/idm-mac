@@ -67,6 +67,7 @@ struct DownloadRecord: Codable, Identifiable {
     var playlistIndex: Int?
     var torrentHash: String?
     var note: String?              // a torrent's current state in words, shown while it runs
+    var priority: Int?             // higher runs first when downloads wait in the queue
     var torrentWebSeed: Bool?      // the torrent switched to its HTTP web seeds (no peers had it)
     var createdAt = Date()
     var completedAt: Date?
