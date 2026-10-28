@@ -21,7 +21,7 @@ async function main() {
       t.textContent = "Uygulama kapalı (gerekince açılır)";
     } else {
       dot.className = "dot ok";
-      t.textContent = "Bağlı";
+      t.textContent = "Bağlı · v" + (s.version || "");
     }
   });
 
@@ -30,6 +30,19 @@ async function main() {
     $(k).checked = s[k];
     $(k).addEventListener("change", () => chrome.storage.local.set({ [k]: $(k).checked }));
   }
+
+  const host = (() => { try { return new URL(tab.url).hostname.replace(/^www\./, ""); } catch (e) { return ""; } })();
+  const st = await chrome.storage.local.get({ disabledSites: [], minSizeKB: 0 });
+  $("siteName").textContent = host;
+  $("siteOff").disabled = !host;
+  $("siteOff").checked = st.disabledSites.includes(host);
+  $("siteOff").addEventListener("change", async () => {
+    const cur = (await chrome.storage.local.get({ disabledSites: [] })).disabledSites.filter((h) => h !== host);
+    if ($("siteOff").checked) cur.push(host);
+    chrome.storage.local.set({ disabledSites: cur });
+  });
+  $("minSize").value = String(st.minSizeKB);
+  $("minSize").addEventListener("change", () => chrome.storage.local.set({ minSizeKB: parseInt($("minSize").value, 10) }));
 
   $("pageVideo").addEventListener("click", () => {
     chrome.runtime.sendMessage({ type: "video", pageUrl: tab.url, title: tab.title }, (r) => {

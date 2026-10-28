@@ -20,7 +20,8 @@
   li small { color: var(--muted); }
   button { font: inherit; border: 0; border-radius: 6px; padding: 5px 10px; background: var(--accent); color: #fff; cursor: pointer; }
   button.ghost { background: transparent; color: var(--accent); padding: 5px 0; }
-  .empty, #statusText { color: var(--muted); }
+  select { font: inherit; background: transparent; color: inherit; border: 1px solid var(--line); border-radius: 6px; }
+  .empty, #statusText, small { color: var(--muted); }
   form { display: flex; gap: 6px; }
   input[type=url] { flex: 1; font: inherit; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: inherit; }
 </style>
@@ -41,6 +42,15 @@
   <section>
     <label class="row">İndirmeleri otomatik yakala <input type="checkbox" id="capture"></label>
     <label class="row">Videoların üstünde buton göster <input type="checkbox" id="videoButton"></label>
+    <label class="row"><span>Bu sitede yakalamayı kapat <small id="siteName"></small></span> <input type="checkbox" id="siteOff"></label>
+    <label class="row">Küçük dosyaları Chrome indirsin
+      <select id="minSize">
+        <option value="0">Hepsini yakala</option>
+        <option value="1024">1 MB altı</option>
+        <option value="10240">10 MB altı</option>
+        <option value="102400">100 MB altı</option>
+      </select></label>
+    <div class="empty" style="font-size:11px;margin-top:4px">İpucu: linke ⌥ (Option) basılı tıklarsan o indirmeyi Chrome yapar.</div>
   </section>
   <script src="popup.js"></script>
 </body>

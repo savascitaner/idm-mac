@@ -7,6 +7,7 @@ const DEFAULTS = {
   capture: true,
   videoButton: true,
   minSizeKB: 0,
+  disabledSites: [],
   exts: "zip rar 7z gz bz2 xz tar tgz dmg pkg iso img exe msi apk deb rpm appimage bin " +
     "mp3 m4a aac flac wav ogg opus mp4 m4v mkv avi mov wmv flv webm mpg mpeg ts " +
     "pdf epub djvu torrent psd ai",
@@ -126,9 +127,19 @@ function extOf(name) {
   return m ? m[1].toLowerCase() : "";
 }
 
+function siteOf(u) {
+  try {
+    return new URL(u).hostname.replace(/^www\./, "");
+  } catch (e) {
+    return "";
+  }
+}
+
 function shouldCapture(item, s) {
   const url = item.finalUrl || item.url;
   if (!s.capture) return false;
+  const off = new Set(s.disabledSites || []);
+  if (off.has(siteOf(item.referrer)) || off.has(siteOf(url))) return false;
   if (!/^https?:/i.test(url)) return false; // blob:, data:, file: stay in Chrome
   if (item.byExtensionId === chrome.runtime.id) return false;
   if (item.state && item.state !== "in_progress") return false;
@@ -310,9 +321,15 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       case "allLinks":
         reply({ ok: await sendAllLinks(msg.tabId) });
         break;
+      case "bypass":
+        // Option-click on a link: Chrome downloads this one itself.
+        skipOnce.add(msg.url);
+        setTimeout(() => skipOnce.delete(msg.url), 60000);
+        reply({ ok: true });
+        break;
       case "status": {
         const res = await send({ type: "ping" }, 4000);
-        reply({ host: !!res, app: !!res?.app });
+        reply({ host: !!res, app: !!res?.app, version: chrome.runtime.getManifest().version });
         break;
       }
       case "media": {
@@ -374,6 +391,14 @@ async function reloadIfUpdated() {
   chrome.runtime.reload();
 }
 reloadIfUpdated();
+
+// ---------- Keyboard shortcut ----------
+
+chrome.commands.onCommand.addListener(async (command) => {
+  if (command !== "download-page-video") return;
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab && tab.url) sendVideo({ pageUrl: tab.url, title: tab.title, referrer: tab.url });
+});
 
 // ---------- Context menu ----------
 
