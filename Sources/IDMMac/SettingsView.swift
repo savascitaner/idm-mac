@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     /// Taller only for the guide's snapshot, so every section shows.
-    static var height: CGFloat = 780
+    static var height: CGFloat = 840
 
     @EnvironmentObject var model: AppModel
     @ObservedObject private var safariWatcher = SafariWatcher.shared
