@@ -15,27 +15,28 @@ final class NetworkWatcher {
     func start() {
         guard !started else { return }
         started = true
-        monitor.pathUpdateHandler = { [weak self] path in
+        monitor.pathUpdateHandler = { path in
             let up = path.status == .satisfied
-            Task { @MainActor in
-                self?.pathUp = up
-                self?.update()
-            }
+            Task { @MainActor in NetworkWatcher.shared.set(pathUp: up) }
         }
         monitor.start(queue: DispatchQueue(label: "mdm.network"))
         let center = NSWorkspace.shared.notificationCenter
-        center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in
-                self?.sleeping = true
-                self?.update()
-            }
+        center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { _ in
+            Task { @MainActor in NetworkWatcher.shared.set(sleeping: true) }
         }
-        center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in
-                self?.sleeping = false
-                self?.update()
-            }
+        center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { _ in
+            Task { @MainActor in NetworkWatcher.shared.set(sleeping: false) }
         }
+    }
+
+    private func set(pathUp: Bool) {
+        self.pathUp = pathUp
+        update()
+    }
+
+    private func set(sleeping: Bool) {
+        self.sleeping = sleeping
+        update()
     }
 
     /// Going away is acted on at once; coming back waits a few seconds so Wi-Fi can settle.
