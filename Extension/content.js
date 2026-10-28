@@ -22,6 +22,17 @@
     true
   );
 
+  // Option-click on a link lets the browser download that one itself.
+  document.addEventListener(
+    "click",
+    (e) => {
+      if (!e.altKey || e.button !== 0) return;
+      const a = e.composedPath().find((el) => el.tagName === "A" && el.href);
+      if (a && /^https?:/i.test(a.href)) chrome.runtime.sendMessage({ type: "bypass", url: a.href }, () => void chrome.runtime.lastError);
+    },
+    true
+  );
+
   // "Sayfadaki tüm linkleri indir": the toolbar menu asks the page for its links and media sources.
   if (window === top) {
     chrome.runtime.onMessage.addListener((m, _sender, reply) => {
