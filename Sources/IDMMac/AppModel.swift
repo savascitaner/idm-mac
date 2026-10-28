@@ -16,6 +16,8 @@ final class AppModel: ObservableObject {
     @Published var chromeConnected = false
     @Published var diskFree: Int64 = 0
     @Published var diskTotal: Int64 = 0
+    /// False while the Mac is offline or asleep: running downloads wait in the queue and start again when it is back.
+    @Published var networkUp = true
 
     /// `--demo` fills the window with sample downloads (used for the CI screenshot); nothing is saved.
     let isDemo = CommandLine.arguments.contains("--demo")
@@ -82,6 +84,7 @@ final class AppModel: ObservableObject {
         }
         DispatchQueue.global().async { SafariBridge.registerExtension() }
         if !isDemo {
+            NetworkWatcher.shared.start()
             ClipboardWatcher.shared.start()
             Updater.shared.start()
             SafariWatcher.shared.start([downloadDirectory,
@@ -403,7 +406,7 @@ final class AppModel: ObservableObject {
     /// Starts queued downloads up to the parallel limit.
     func pump() {
         // Outside the scheduled hours new downloads wait in the queue.
-        guard Schedule.allowsNow else { return updateSleepAssertion() }
+        guard Schedule.allowsNow, networkUp else { return updateSleepAssertion() }
         let running = downloads.filter { $0.state == .downloading }.count
         var slots = max(1, maxParallel) - running
         for i in downloads.indices.reversed() where slots > 0 && downloads[i].state == .queued {
@@ -473,7 +476,7 @@ final class AppModel: ObservableObject {
             downloads[i].cookies = []
             downloads[i].headers["Cookie"] = nil
             finished(id)
-            notifyUser("İndirme tamamlandı", downloads[i].fileName)
+            notifyUser("İndirme tamamlandı", downloads[i].fileName, category: NotificationHandler.doneCategory, downloadID: id)
             checkAllDone()
         case .failed(var msg, let s):
             merge(s)
@@ -500,7 +503,7 @@ final class AppModel: ObservableObject {
             downloads[i].error = msg
             downloads[i].speed = 0
             finished(id)
-            notifyUser("İndirme başarısız", "\(downloads[i].fileName): \(msg)")
+            notifyUser("İndirme başarısız", "\(downloads[i].fileName): \(msg)", category: NotificationHandler.failedCategory, downloadID: id)
             checkAllDone()
         }
     }
@@ -606,6 +609,40 @@ final class AppModel: ObservableObject {
         for d in downloads where d.state == .paused { resume(d.id) }
     }
 
+    /// Called by NetworkWatcher. Going offline holds the running downloads in the queue; coming back
+    /// starts them again and retries the ones that failed with a connection error meanwhile.
+    func setNetwork(up: Bool) {
+        guard up != networkUp else { return }
+        networkUp = up
+        if !up {
+            let running = downloads.filter { $0.state == .downloading }
+            running.forEach { hold($0.id) }
+            Log.download("network down; held \(running.count) running download(s)")
+            if !running.isEmpty { notifyUser("Bağlantı yok", "İndirmeler bekliyor, bağlantı gelince kendiliğinden sürecek") }
+        } else {
+            let failed = downloads.filter { $0.state == .failed && ($0.error ?? "").hasPrefix("Bağlantı hatası") }
+            failed.forEach { resume($0.id) }
+            Log.download("network up; retrying \(failed.count) failed download(s), \(queuedCount) queued")
+            pump()
+            if queuedCount + failed.count > 0 { notifyUser("Bağlantı geldi", "İndirmeler sürüyor") }
+        }
+    }
+
+    /// Buttons on the "finished" and "failed" notifications.
+    func handleNotificationAction(_ action: String, downloadID id: UUID) {
+        guard let d = downloads.first(where: { $0.id == id }) else { return }
+        switch action {
+        case "open":
+            if let f = d.finalPath { NSWorkspace.shared.open(URL(fileURLWithPath: f)) }
+        case "reveal":
+            if let f = d.finalPath { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: f)]) }
+        case "retry":
+            resume(id)
+        default:
+            MainWindow.show()
+        }
+    }
+
     // MARK: Helpers
 
     var activeCount: Int { downloads.filter { $0.state == .downloading }.count }
@@ -645,11 +682,13 @@ final class AppModel: ObservableObject {
         NSApp?.dockTile.badgeLabel = busy ? "\(activeCount)" : nil
     }
 
-    func notifyUser(_ title: String, _ body: String) {
+    func notifyUser(_ title: String, _ body: String, category: String? = nil, downloadID: UUID? = nil) {
         guard notify else { return }
         let c = UNMutableNotificationContent()
         c.title = title
         c.body = body
+        if let category { c.categoryIdentifier = category }
+        if let downloadID { c.userInfo = ["id": downloadID.uuidString] }
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil))
     }
 
