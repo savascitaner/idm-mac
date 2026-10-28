@@ -185,8 +185,17 @@ async function handOff(item) {
   }
 }
 
+// Firefox has no onDeterminingFilename; onCreated fires a little earlier (file name and MIME type may still be empty).
+if (!chrome.downloads.onDeterminingFilename) {
+  chrome.downloads.onCreated.addListener((item) => {
+    settings().then((s) => {
+      if (shouldCapture(item, s)) handOff(item);
+    });
+  });
+}
+
 // onDeterminingFilename fires once the response headers are in, so the real file name and MIME type are known.
-chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
+if (chrome.downloads.onDeterminingFilename) chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
   settings().then((s) => {
     if (shouldCapture(item, s)) {
       handOff(item);

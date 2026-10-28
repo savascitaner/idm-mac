@@ -14,6 +14,7 @@ enum Paths {
     static var bin: URL { support.appendingPathComponent("bin", isDirectory: true) }
     static var cookies: URL { support.appendingPathComponent("cookies", isDirectory: true) }
     static var extensionDir: URL { support.appendingPathComponent("ChromeExtension", isDirectory: true) }
+    static var firefoxExtensionDir: URL { support.appendingPathComponent("FirefoxExtension", isDirectory: true) }
 
     static var bundledBin: URL? { Bundle.main.resourceURL?.appendingPathComponent("bin", isDirectory: true) }
 }

@@ -148,6 +148,13 @@ enum HostInstaller {
 
     static let browserDirs = browsers.map(\.dir)
 
+    static let firefoxExtensionID = "mdm@savascitaner.github.io"
+    /// Firefox keeps its profiles in Application Support/Firefox and reads native hosts from Mozilla/NativeMessagingHosts.
+    static var firefoxInstalled: Bool {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return FileManager.default.fileExists(atPath: base.appendingPathComponent("Firefox").path)
+    }
+
     /// Browsers whose profile folder exists on this Mac.
     static func installedBrowsers() -> [Browser] {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -169,6 +176,18 @@ enum HostInstaller {
         guard let data = try? JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .withoutEscapingSlashes]) else { return [] }
         let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         var installed: [String] = []
+        if firefoxInstalled {
+            var ff = manifest
+            ff["allowed_origins"] = nil
+            ff["allowed_extensions"] = [firefoxExtensionID]
+            if let ffData = try? JSONSerialization.data(withJSONObject: ff, options: [.prettyPrinted, .withoutEscapingSlashes]) {
+                let hosts = base.appendingPathComponent("Mozilla/NativeMessagingHosts", isDirectory: true)
+                try? fm.createDirectory(at: hosts, withIntermediateDirectories: true)
+                if (try? ffData.write(to: hosts.appendingPathComponent("\(hostName).json"))) != nil {
+                    installed.append("Mozilla/Firefox")
+                }
+            }
+        }
         for dir in browserDirs {
             let browser = base.appendingPathComponent(dir, isDirectory: true)
             guard fm.fileExists(atPath: browser.path) else { continue }
@@ -192,6 +211,23 @@ enum HostInstaller {
             }
         }
         try? fm.removeItem(at: Paths.support.appendingPathComponent("mdm-extension.crx"))
+    }
+
+    /// The same extension with Firefox's manifest, for Firefox's "Load Temporary Add-on".
+    static func exportFirefoxExtension() -> URL? {
+        let fm = FileManager.default
+        guard let src = Bundle.main.resourceURL?.appendingPathComponent("ChromeExtension", isDirectory: true),
+              fm.fileExists(atPath: src.appendingPathComponent("manifest.firefox.json").path) else { return nil }
+        let dst = Paths.firefoxExtensionDir
+        try? fm.removeItem(at: dst)
+        do {
+            try fm.copyItem(at: src, to: dst)
+            try fm.removeItem(at: dst.appendingPathComponent("manifest.json"))
+            try fm.moveItem(at: dst.appendingPathComponent("manifest.firefox.json"), to: dst.appendingPathComponent("manifest.json"))
+            return dst
+        } catch {
+            return nil
+        }
     }
 
     /// Copies the bundled extension to a stable folder that Chrome can load ("Load unpacked").

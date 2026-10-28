@@ -373,6 +373,8 @@ final class TorrentDownloader {
         }
     }
 
+    private var addRetries = 0
+
     private func post(_ body: Data, isURL: Bool) {
         let q = [URLQueryItem(name: "overwrite", value: "true"),
                  URLQueryItem(name: "output_folder", value: record.directory),
@@ -385,6 +387,16 @@ final class TorrentDownloader {
             case .failure(let e):
                 let waited = Int(Date().timeIntervalSince(started))
                 Log.torrent("rqbit add failed after \(waited) s: \(e.localizedDescription)")
+                // A reused connection to the local rqbit can be dropped right as it is used; adding is safe to repeat (overwrite=true).
+                if (e as? URLError)?.code == .networkConnectionLost, self.addRetries < 3 {
+                    self.addRetries += 1
+                    Log.torrent("connection to rqbit was lost, adding again (\(self.addRetries))")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                        guard let self, !self.stopped else { return }
+                        self.post(body, isURL: isURL)
+                    }
+                    return
+                }
                 if (e as? URLError)?.code == .timedOut {
                     return self.fail("Kaynak bulunamadı: 10 dakikada hiçbir eşten meta veri gelmedi")
                 }

@@ -133,6 +133,7 @@ struct ContentView: View {
         if d.state == .completed {
             Button("Aç") { model.open(d) }
             Button("Finder'da göster") { model.reveal(d) }
+            Button("SHA-256 hesapla / panodakiyle karşılaştır") { model.verifyChecksum(d) }
         }
         if d.isActive { Button("Duraklat") { model.pause(d.id) } }
         if d.state == .paused || d.state == .failed { Button("Sürdür") { model.resume(d.id) } }
@@ -361,6 +362,23 @@ struct ExtensionHelpSheet: View {
                     Label("\(b.name): eklenti sayfasını aç ve klasör yolunu kopyala", systemImage: "wand.and.stars")
                 }
                 .buttonStyle(.borderedProminent)
+            }
+            if HostInstaller.firefoxInstalled {
+                VStack(alignment: .leading, spacing: 6) {
+                    Button {
+                        _ = HostInstaller.exportFirefoxExtension()
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(Paths.firefoxExtensionDir.appendingPathComponent("manifest.json").path, forType: .string)
+                        let p = Process()
+                        p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+                        p.arguments = ["-a", "Firefox", "about:debugging#/runtime/this-firefox"]
+                        try? p.run()
+                    } label: {
+                        Label("Firefox: hata ayıklama sayfasını aç ve manifest yolunu kopyala", systemImage: "flame")
+                    }
+                    Text("Firefox'ta **Geçici Eklenti Yükle**'ye bas, **Cmd + Shift + G**, **Cmd + V**, **Enter** ile manifest.json'u seç. Geçici eklenti Firefox kapanınca silinir; kalıcı kurulum için imzalı sürüm hazırlanıyor.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
             VStack(alignment: .leading, spacing: 8) {
                 Text("Düğme tarayıcıyı eklenti sayfasında açar ve klasör yolunu panoya kopyalar. Geriye üç tıklama kalır:")
