@@ -52,9 +52,10 @@ async function sendLink(url, referrer, filename, guess) {
     type: "download",
     url,
     filename: filename || "",
-    // For a guessed link the app expects a file and gives web pages back to Safari.
+    // For a guessed link the app expects a file and gives web pages back to Safari. Any link whose
+    // server refuses MDM (HTTP errors, like opensubtitles' 503) goes back to Safari too.
     mime: guess ? "application/octet-stream" : "",
-    fallback: guess ? "safari" : "",
+    fallback: "safari",
     referrer: referrer || "",
     userAgent: navigator.userAgent,
     cookies: await cookiesFor(url),
