@@ -67,6 +67,9 @@ final class SafariWatcher: ObservableObject {
 
     private func scan(_ dir: String) {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []
+        // Safari reuses a bundle name once the earlier one is gone (finished, cancelled, file deleted);
+        // forget those paths so the same file downloaded again is noticed.
+        seen = seen.filter { !$0.hasPrefix(dir + "/") || FileManager.default.fileExists(atPath: $0) }
         for n in names where n.hasSuffix(".download") {
             let path = dir + "/" + n
             guard !seen.contains(path) else { continue }

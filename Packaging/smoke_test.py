@@ -148,6 +148,13 @@ def safari_refusal_test():
     print("server without Range:", rec and rec.get("state"), rec and rec.get("error"), "bundle left:", ndir.exists())
     if not rec or rec.get("state") != "completed" or ndir.exists():
         fail("a server that refuses Range requests was not downloaded with a plain request")
+    # Safari reuses the bundle name of a finished download; the second one must be noticed too.
+    again = f"{base}/norange/again.bin"
+    adir = safari_download("norange.bin", again)
+    rec = wait(again, ("completed", "failed"))
+    print("same bundle name again:", rec and rec.get("state"))
+    if not rec or rec.get("state") != "completed":
+        fail("a second Safari download with a reused bundle name was ignored")
     server.shutdown()
 
     # A YouTube stream (googlevideo.com/videoplayback) Safari downloads from a watch page goes to MDM's
