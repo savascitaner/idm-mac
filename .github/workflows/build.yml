@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-15
     env:
       MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
     steps:
@@ -25,6 +25,8 @@ jobs:
 
       - name: Toolchain
         run: |
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$X" ]; then sudo xcode-select -s "$X"; fi
           swift --version
           xcodebuild -version
 
