@@ -122,10 +122,37 @@ enum HostInstaller {
     /// The ID before the extension was packed as a CRX; kept so a copy loaded by hand still works.
     static let legacyExtensionIDs = ["mnanilgkappdlfepnjifibfalbblnbcc"]
 
-    static let browserDirs = [
-        "Google/Chrome", "Google/Chrome Beta", "Google/Chrome Dev", "Google/Chrome Canary",
-        "Chromium", "BraveSoftware/Brave-Browser", "Microsoft Edge", "Vivaldi", "Arc/User Data",
+    /// Chromium-based browsers MDM registers its native host with.
+    struct Browser: Identifiable {
+        let name: String
+        let app: String
+        let dir: String
+        let extensionsURL: String
+        var id: String { dir }
+    }
+
+    static let browsers: [Browser] = [
+        Browser(name: "Google Chrome", app: "Google Chrome", dir: "Google/Chrome", extensionsURL: "chrome://extensions"),
+        Browser(name: "Chrome Beta", app: "Google Chrome Beta", dir: "Google/Chrome Beta", extensionsURL: "chrome://extensions"),
+        Browser(name: "Chrome Dev", app: "Google Chrome Dev", dir: "Google/Chrome Dev", extensionsURL: "chrome://extensions"),
+        Browser(name: "Chrome Canary", app: "Google Chrome Canary", dir: "Google/Chrome Canary", extensionsURL: "chrome://extensions"),
+        Browser(name: "Chromium", app: "Chromium", dir: "Chromium", extensionsURL: "chrome://extensions"),
+        Browser(name: "Brave", app: "Brave Browser", dir: "BraveSoftware/Brave-Browser", extensionsURL: "brave://extensions"),
+        Browser(name: "Microsoft Edge", app: "Microsoft Edge", dir: "Microsoft Edge", extensionsURL: "edge://extensions"),
+        Browser(name: "Vivaldi", app: "Vivaldi", dir: "Vivaldi", extensionsURL: "vivaldi://extensions"),
+        Browser(name: "Arc", app: "Arc", dir: "Arc/User Data", extensionsURL: "chrome://extensions"),
+        Browser(name: "Opera", app: "Opera", dir: "com.operasoftware.Opera", extensionsURL: "opera://extensions"),
+        Browser(name: "Opera GX", app: "Opera GX", dir: "com.operasoftware.OperaGX", extensionsURL: "opera://extensions"),
+        Browser(name: "Yandex Browser", app: "Yandex", dir: "Yandex/YandexBrowser", extensionsURL: "browser://extensions"),
     ]
+
+    static let browserDirs = browsers.map(\.dir)
+
+    /// Browsers whose profile folder exists on this Mac.
+    static func installedBrowsers() -> [Browser] {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return browsers.filter { FileManager.default.fileExists(atPath: base.appendingPathComponent($0.dir).path) }
+    }
 
     @discardableResult
     static func install() -> [String] {

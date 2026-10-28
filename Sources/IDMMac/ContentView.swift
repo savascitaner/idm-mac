@@ -230,7 +230,7 @@ struct EmptyState: View {
             Text("Henüz indirme yok").font(.title3)
             Text("Chrome'da bir indirme linkine tıkla ya da bir videonun üstündeki \"Bu videoyu indir\" butonunu kullan.")
                 .multilineTextAlignment(.center).foregroundStyle(.secondary).frame(maxWidth: 420)
-            Button("Chrome eklentisini kur") { showExtensionHelp = true }
+            Button("Tarayıcı eklentisini kur") { showExtensionHelp = true }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
@@ -329,34 +329,41 @@ struct ExtensionHelpSheet: View {
         }
     }
 
-    private func openChromeExtensions() {
+    private func openExtensions(in browser: HostInstaller.Browser) {
         _ = HostInstaller.exportExtension()
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(Paths.extensionDir.path, forType: .string)
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        p.arguments = ["-a", "Google Chrome", "chrome://extensions"]
+        p.arguments = ["-a", browser.app, browser.extensionsURL]
         try? p.run()
     }
 
     private var chrome: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Chrome eklentisini kur").font(.title3.bold())
+            Text("Tarayıcı eklentisini kur").font(.title3.bold())
             Label(model.chromeConnected ? "Eklenti bağlı, kurulum tamam" : "Eklenti henüz bağlanmadı",
                   systemImage: model.chromeConnected ? "checkmark.circle.fill" : "circle.dashed")
                 .foregroundStyle(model.chromeConnected ? .green : .orange)
-            Button {
-                openChromeExtensions()
-            } label: {
-                Label("Chrome'u eklenti sayfasında aç ve klasör yolunu kopyala", systemImage: "wand.and.stars")
+            let installed = HostInstaller.installedBrowsers()
+            if installed.isEmpty {
+                Text("Chromium tabanlı bir tarayıcı bulunamadı. Chrome, Brave, Edge, Opera, Vivaldi, Arc veya Yandex'i bir kez açıp bu sayfaya dön.")
+                    .font(.callout).foregroundStyle(.orange)
             }
-            .buttonStyle(.borderedProminent)
+            ForEach(installed) { b in
+                Button {
+                    openExtensions(in: b)
+                } label: {
+                    Label("\(b.name): eklenti sayfasını aç ve klasör yolunu kopyala", systemImage: "wand.and.stars")
+                }
+                .buttonStyle(.borderedProminent)
+            }
             VStack(alignment: .leading, spacing: 8) {
-                Text("Yukarıdaki düğme Chrome'u **chrome://extensions** sayfasında açtı ve klasör yolunu panoya kopyaladı. Geriye üç tıklama kaldı:")
+                Text("Düğme tarayıcıyı eklenti sayfasında açar ve klasör yolunu panoya kopyalar. Geriye üç tıklama kalır:")
                 Text("1. Sağ üstteki **Geliştirici modu** anahtarını aç.")
                 Text("2. **Paketlenmemiş öğe yükle**'ye bas, açılan pencerede **Cmd + Shift + G**, **Cmd + V**, **Enter**, sonra **Seç**.")
                 Text("3. İsteğe bağlı: eklentinin simgesini araç çubuğuna sabitle.")
-                Text("Chrome mağaza dışı eklentilerin kendiliğinden kurulmasına izin vermediği için bu adım bir kez elle yapılır; sonraki güncellemeleri eklenti kendi yapar.")
+                Text("Tarayıcılar mağaza dışı eklentilerin kendiliğinden kurulmasına izin vermediği için bu adım bir kez elle yapılır; sonraki güncellemeleri eklenti kendi yapar.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             HStack {
@@ -373,7 +380,7 @@ struct ExtensionHelpSheet: View {
                 }
             }
             Text(model.browsersLinked.isEmpty
-                 ? "Uyarı: Chrome profili bulunamadı. Chrome'u bir kez açıp bu uygulamayı yeniden başlat."
+                 ? "Uyarı: Tarayıcı profili bulunamadı. Tarayıcıyı bir kez açıp bu uygulamayı yeniden başlat."
                  : "Bağlanan tarayıcılar: " + model.browsersLinked.joined(separator: ", "))
                 .font(.caption).foregroundStyle(model.browsersLinked.isEmpty ? .orange : .secondary)
         }
