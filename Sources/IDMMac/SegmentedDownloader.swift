@@ -160,6 +160,7 @@ final class SegmentedDownloader: NSObject, URLSessionDataDelegate {
         }
         if fileName.isEmpty { fileName = FileMeta.fileName(from: response.url ?? URL(fileURLWithPath: "/indirme")) }
 
+        record.directory = FolderRules.directory(base: record.directory, fileName: fileName)
         let dir = URL(fileURLWithPath: record.directory, isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let final = FileMeta.uniqueURL(in: dir, name: fileName)

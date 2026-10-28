@@ -25,6 +25,7 @@ struct SettingsView: View {
     @AppStorage("autoUpdateCheck") private var autoUpdateCheck: Bool = true
     @AppStorage("autoInstallUpdate") private var autoInstallUpdate: Bool = true
     @AppStorage("glassLook") private var glassLook: Bool = true
+    @AppStorage("folderRulesOn") private var folderRulesOn = false
     @AppStorage("menuBarInfo") private var menuBarInfo: String = "icon"
     @ObservedObject private var updater = Updater.shared
     @State private var updateOutput = ""
@@ -98,6 +99,11 @@ struct SettingsView: View {
                     Text("Hız").tag("speed")
                     Text("Yüzde").tag("percent")
                 }
+            }
+            Section("Klasörler") {
+                Toggle("İndirmeleri türüne göre alt klasörlere ayır (Video, Müzik, Arşivler, Uygulamalar, Belgeler)", isOn: $folderRulesOn)
+                Text("Yalnızca varsayılan indirme klasörü için geçerli; elle seçtiğin klasör olduğu gibi kalır.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Güncelleme") {
                 Toggle("Yeni sürümleri kendiliğinden denetle", isOn: $autoUpdateCheck)
