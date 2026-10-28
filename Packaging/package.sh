@@ -143,9 +143,19 @@ if [ -n "${SIGN_ID:-}" ] && [ -n "${NOTARY_APPLE_ID:-}" ]; then
     return 1
   }
   ditto -c -k --keepParent "$APP" "$TMP/MDM.zip"
+  # stapler validate asks Apple's CloudKit too, and that connection drops now and then.
+  validate() {
+    for i in 1 2 3 4 5; do
+      xcrun stapler validate "$1" && return 0
+      echo "validate attempt $i of $1 failed, retrying" >&2
+      sleep $((i * 10))
+    done
+    return 1
+  }
+
   notarize "$TMP/MDM.zip"
   staple "$APP"
-  xcrun stapler validate "$APP"
+  validate "$APP"
 fi
 
 echo "==> DMG"
