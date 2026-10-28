@@ -142,6 +142,26 @@ def safari_refusal_test():
         fail("a server that refuses Range requests was not downloaded with a plain request")
     server.shutdown()
 
+    # A YouTube stream (googlevideo.com/videoplayback) Safari downloads from a watch page goes to MDM's
+    # video window (yt-dlp) instead of a direct fetch that YouTube refuses; Safari's copy is removed.
+    ydir = Path.home() / "Downloads" / "videoplayback.download"
+    ydir.mkdir(parents=True, exist_ok=True)
+    yurl = "https://rr1---sn-test.googlevideo.com/videoplayback?expire=1&itag=18"
+    ypart = ydir / "videoplayback"
+    ypart.write_bytes(b"")
+    froms = plistlib.dumps([yurl, "https://www.youtube.com/watch?v=jNQXAC9IVRw"], fmt=plistlib.FMT_BINARY).hex()
+    subprocess.run(["xattr", "-wx", "com.apple.metadata:kMDItemWhereFroms", froms, str(ypart)], check=True)
+    plistlib.dump({"DownloadEntryURL": yurl, "DownloadEntryPath": str(ydir)}, open(ydir / "Info.plist", "wb"))
+    log = SUPPORT / "mdm.log"
+    deadline = time.time() + 20
+    while time.time() < deadline and ydir.exists():
+        time.sleep(1)
+    time.sleep(1)
+    routed = log.exists() and "YouTube akışı, Safari'nin kopyası silindi" in log.read_text(errors="replace")
+    print("youtube stream:", "bundle left:", ydir.exists(), "routed to video window:", routed)
+    if ydir.exists() or not routed:
+        fail("a YouTube stream Safari downloaded was not sent to the video window")
+
 
 def torrent_test():
     """A Debian netinst torrent through the native host: rqbit must add it and start downloading."""

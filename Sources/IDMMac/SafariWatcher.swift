@@ -100,6 +100,30 @@ final class SafariWatcher: ObservableObject {
         }
         guard url.hasPrefix("http://") || url.hasPrefix("https://") else { return log("http değil: \(url)") }
         if let t = handedBack[url], t.timeIntervalSinceNow > -600 { return log("Safari'ye geri verilmişti: \(url)") }
+        if Self.isYouTubeStream(url) {
+            // A googlevideo.com link is one stream of a YouTube video, tied to Safari's session (and IP):
+            // fetching it directly gives 403 or only a piece. MDM downloads the video from its page with
+            // yt-dlp instead, the way the "Bu videoyu indir" button does.
+            guard let page = referrer, let host = URL(string: page)?.host?.lowercased(),
+                  host == "youtube.com" || host.hasSuffix(".youtube.com") || host == "youtu.be" else {
+                log("YouTube akışı ama sayfası bilinmiyor, doğrudan deneniyor: \(url)")
+                return takeFile(path, url: url, referrer: referrer)
+            }
+            try? FileManager.default.removeItem(atPath: path)
+            log("YouTube akışı, Safari'nin kopyası silindi, video penceresi açılıyor: \(page)")
+            AppModel.shared.handle(["type": "video", "pageUrl": page, "userAgent": Self.userAgent])
+            return
+        }
+        takeFile(path, url: url, referrer: referrer)
+    }
+
+    /// googlevideo.com (or its old *.c.youtube.com name) /videoplayback: a YouTube media stream.
+    nonisolated static func isYouTubeStream(_ s: String) -> Bool {
+        guard let u = URL(string: s), let host = u.host?.lowercased() else { return false }
+        return (host.hasSuffix(".googlevideo.com") || host.hasSuffix(".c.youtube.com")) && u.path.contains("videoplayback")
+    }
+
+    private func takeFile(_ path: String, url: String, referrer: String?) {
         let name = String(URL(fileURLWithPath: path).lastPathComponent.dropLast(".download".count))
         // Safari's copy is kept until MDM's first request succeeds (AppModel removes it then). If the server
         // refuses MDM (it wants Safari's cookies, or the link is tied to Safari's IP like iCloud Private Relay
