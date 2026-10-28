@@ -57,30 +57,38 @@
       button {
         all: initial; cursor: pointer; display: flex; align-items: center; gap: 6px;
         font: 600 13px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
-        color: #fff; background: rgba(37, 99, 235, 0.95); padding: 7px 12px; border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0,0,0,.35);
+        color: #fff; background: rgba(37, 99, 235, 0.72); padding: 7px 12px; border-radius: 12px;
+        border: 1px solid rgba(255,255,255,.28);
+        -webkit-backdrop-filter: blur(18px) saturate(180%); backdrop-filter: blur(18px) saturate(180%);
+        box-shadow: 0 4px 16px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.3);
       }
-      button:hover { background: #1d4ed8; }
-      button.done { background: #16a34a; }
-      button.err { background: #dc2626; }
+      button:hover { background: rgba(29, 78, 216, 0.82); }
+      button.done { background: rgba(22, 163, 74, 0.8); }
+      button.err { background: rgba(220, 38, 38, 0.8); }
+      @media (prefers-reduced-transparency: reduce) {
+        button { background: #2563eb; -webkit-backdrop-filter: none; backdrop-filter: none; }
+        .menu { background: #18181b; -webkit-backdrop-filter: none; backdrop-filter: none; }
+      }
       svg { width: 15px; height: 15px; fill: currentColor; }
       .wrap { position: relative; }
       .menu {
         position: absolute; right: 0; top: calc(100% + 6px); min-width: 250px; max-height: 60vh; overflow-y: auto;
         font: 13px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; color: #f4f4f5;
-        background: rgba(24, 24, 27, 0.97); border-radius: 10px; padding: 6px;
-        box-shadow: 0 8px 28px rgba(0,0,0,.5); box-sizing: border-box;
+        background: rgba(30, 30, 36, 0.62); border-radius: 14px; padding: 6px;
+        border: 1px solid rgba(255,255,255,.18);
+        -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
+        box-shadow: 0 10px 32px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.18); box-sizing: border-box;
       }
       .menu[hidden] { display: none; }
       .head { padding: 6px 10px 3px; color: #a1a1aa; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
       .item { display: flex; justify-content: space-between; gap: 18px; padding: 7px 10px; border-radius: 6px; cursor: pointer; }
-      .item:hover { background: #2563eb; }
+      .item:hover { background: rgba(37, 99, 235, 0.85); }
       .item .d { color: #a1a1aa; }
       .item:hover .d { color: #dbeafe; }
       .note { padding: 8px 10px; color: #a1a1aa; }
       select {
         margin: 2px 10px 6px; width: calc(100% - 20px); font: 13px -apple-system, sans-serif; color: #f4f4f5;
-        background: #3f3f46; border: 0; border-radius: 6px; padding: 5px 6px;
+        background: rgba(255,255,255,.14); border: 0; border-radius: 8px; padding: 5px 6px;
       }
     </style>
     <div class="wrap">

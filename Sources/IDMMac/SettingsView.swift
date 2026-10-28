@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     /// Taller only for the guide's snapshot, so every section shows.
-    static var height: CGFloat = 700
+    static var height: CGFloat = 780
 
     @EnvironmentObject var model: AppModel
     @ObservedObject private var safariWatcher = SafariWatcher.shared
@@ -24,6 +24,8 @@ struct SettingsView: View {
     @AppStorage("afterAll") private var afterAll: String = Schedule.AfterAll.none.rawValue
     @AppStorage("autoUpdateCheck") private var autoUpdateCheck: Bool = true
     @AppStorage("autoInstallUpdate") private var autoInstallUpdate: Bool = true
+    @AppStorage("glassLook") private var glassLook: Bool = true
+    @AppStorage("menuBarInfo") private var menuBarInfo: String = "icon"
     @ObservedObject private var updater = Updater.shared
     @State private var updateOutput = ""
 
@@ -88,6 +90,14 @@ struct SettingsView: View {
                 }
                 Text("Bir kez uygulanır, ardından \"Bir şey yapma\"ya döner. Yapmadan önce 60 saniye boyunca vazgeçme şansı verir.")
                     .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Görünüm") {
+                Toggle("Cam görünüm", isOn: $glassLook)
+                Picker("Menü çubuğunda göster", selection: $menuBarInfo) {
+                    Text("Yalnızca simge").tag("icon")
+                    Text("Hız").tag("speed")
+                    Text("Yüzde").tag("percent")
+                }
             }
             Section("Güncelleme") {
                 Toggle("Yeni sürümleri kendiliğinden denetle", isOn: $autoUpdateCheck)
