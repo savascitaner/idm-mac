@@ -38,6 +38,7 @@ final class AppModel: ObservableObject {
     private var speedTimer: Timer?
     private let videoWindows = VideoWindowController()
     private var dockHost: NSHostingView<DockTileView>?
+    private var dockBadge: String?
     private var dockPercent = -1
     private var ticks = 0
     private var booted = false
@@ -114,6 +115,9 @@ final class AppModel: ObservableObject {
         }
         pollSafariMirrors()
         updateDock()
+        // Not every way a download stops goes through pump() (a Safari mirror finishing, a row removed
+        // while Safari still had it), so the Dock badge and the sleep block are checked every second too.
+        updateSleepAssertion()
         checkSchedule()
         applySpeedLimit()
         let connected = (server?.clientCount ?? 0) > 0
@@ -598,6 +602,7 @@ final class AppModel: ObservableObject {
                 Log.download("Safari's download is gone without a finished file: \(partial)")
             }
             save()
+            updateSleepAssertion()
         }
     }
 
@@ -697,6 +702,7 @@ final class AppModel: ObservableObject {
         downloads.remove(at: i)
         speedSeries[id] = nil
         save()
+        updateSleepAssertion()
     }
 
     func clearCompleted() {
@@ -792,7 +798,18 @@ final class AppModel: ObservableObject {
             ProcessInfo.processInfo.endActivity(a)
             sleepActivity = nil
         }
-        NSApp?.dockTile.badgeLabel = busy ? "\(activeCount)" : nil
+        let badge = Self.dockBadge(for: downloads)
+        if badge != dockBadge {
+            dockBadge = badge
+            NSApp?.dockTile.badgeLabel = badge
+            Log.download("Dock rozeti: \(badge ?? "yok")")
+        }
+    }
+
+    /// The Dock badge is the number of downloads running right now, nothing when none is.
+    static func dockBadge(for downloads: [DownloadRecord]) -> String? {
+        let n = downloads.filter { $0.state == .downloading }.count
+        return n > 0 ? "\(n)" : nil
     }
 
     func notifyUser(_ title: String, _ body: String, category: String? = nil, downloadID: UUID? = nil) {
