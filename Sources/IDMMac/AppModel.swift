@@ -112,6 +112,7 @@ final class AppModel: ObservableObject {
             if s.count > 120 { s.removeFirst(s.count - 120) }
             speedSeries[d.id] = s
         }
+        pollSafariMirrors()
         updateDock()
         checkSchedule()
         applySpeedLimit()
@@ -410,7 +411,7 @@ final class AppModel: ObservableObject {
     func pump() {
         // Outside the scheduled hours new downloads wait in the queue.
         guard Schedule.allowsNow, networkUp else { return updateSleepAssertion() }
-        let running = downloads.filter { $0.state == .downloading }.count
+        let running = downloads.filter { $0.state == .downloading && $0.safariMirror == nil }.count
         var slots = max(1, maxParallel) - running
         for i in downloads.indices.reversed() where slots > 0 && downloads[i].state == .queued {
             start(at: i)
@@ -503,12 +504,18 @@ final class AppModel: ObservableObject {
                 downloads[i].safariPartial = nil
                 downloads[i].tempPath = nil
                 downloads[i].segments = []
-                downloads[i].state = .failed
-                downloads[i].error = msg + "; indirmeye Safari devam ediyor"
+                // MDM can't fetch it, but it still shows the download: the row follows Safari's own progress
+                // (its "name.download" folder) and turns into a finished entry when Safari is done.
+                downloads[i].safariMirror = partial
+                downloads[i].state = .downloading
+                downloads[i].error = nil
+                downloads[i].note = "Safari indiriyor (sunucu MDM'ye vermedi: \(msg))"
                 downloads[i].speed = 0
-                finished(id)
-                notifyUser("Bu indirmeyi Safari yapıyor", "\(downloads[i].fileName): \(msg)",
-                           category: NotificationHandler.failedCategory, downloadID: id)
+                downloads[i].receivedBytes = 0
+                downloads[i].totalBytes = -1
+                fileEngines[id] = nil
+                lastBytes[id] = nil
+                save()
                 return
             }
             if downloads[i].browserFallback == "safari", msg == SegmentedDownloader.htmlInsteadOfFile {
@@ -545,6 +552,52 @@ final class AppModel: ObservableObject {
             finished(id)
             notifyUser("İndirme başarısız", "\(downloads[i].fileName): \(msg)", category: NotificationHandler.failedCategory, downloadID: id)
             checkAllDone()
+        }
+    }
+
+    /// Follows the downloads Safari keeps: progress from its "name.download" folder; when the folder is
+    /// gone, the finished file next to it completes the entry, otherwise Safari cancelled it.
+    private func pollSafariMirrors() {
+        let fm = FileManager.default
+        for i in downloads.indices.reversed() {
+            guard let partial = downloads[i].safariMirror else { continue }
+            let id = downloads[i].id
+            if fm.fileExists(atPath: partial) {
+                let (bytes, total) = SafariWatcher.progress(of: partial)
+                if let (b, t) = lastBytes[id], Date().timeIntervalSince(t) > 0.5 {
+                    downloads[i].speed = max(0, Double(bytes - b) / Date().timeIntervalSince(t))
+                    lastBytes[id] = (bytes, Date())
+                } else if lastBytes[id] == nil {
+                    lastBytes[id] = (bytes, Date())
+                }
+                downloads[i].receivedBytes = bytes
+                if total > 0 { downloads[i].totalBytes = total }
+                continue
+            }
+            lastBytes[id] = nil
+            downloads[i].safariMirror = nil
+            downloads[i].speed = 0
+            let dir = (partial as NSString).deletingLastPathComponent
+            let name = String((partial as NSString).lastPathComponent.dropLast(".download".count))
+            let done = (dir as NSString).appendingPathComponent(name)
+            if fm.fileExists(atPath: done) {
+                let size = ((try? fm.attributesOfItem(atPath: done))?[.size] as? Int64) ?? downloads[i].receivedBytes
+                downloads[i].state = .completed
+                downloads[i].finalPath = done
+                downloads[i].receivedBytes = size
+                downloads[i].totalBytes = size
+                downloads[i].completedAt = Date()
+                downloads[i].note = nil
+                Log.download("Safari finished a download MDM was following: \(done)")
+                SafariWatcher.shared.log("Safari indirmeyi bitirdi, MDM listesinde tamamlandı: \(done)")
+                notifyUser("İndirme tamamlandı", name, category: NotificationHandler.doneCategory, downloadID: id)
+            } else {
+                downloads[i].state = .failed
+                downloads[i].error = "Safari indirmeyi tamamlamadan bıraktı (dosya bulunamadı)"
+                downloads[i].note = nil
+                Log.download("Safari's download is gone without a finished file: \(partial)")
+            }
+            save()
         }
     }
 
@@ -598,7 +651,8 @@ final class AppModel: ObservableObject {
     }
 
     private func stop(_ id: UUID, as state: DownloadState) {
-        guard let i = downloads.firstIndex(where: { $0.id == id }), downloads[i].isActive else { return }
+        guard let i = downloads.firstIndex(where: { $0.id == id }), downloads[i].isActive,
+              downloads[i].safariMirror == nil else { return }  // Safari's own download can't be paused from here
         fileEngines[id]?.pause()
         videoEngines[id]?.pause()
         torrentEngines[id]?.pause()
@@ -674,7 +728,7 @@ final class AppModel: ObservableObject {
         guard up != networkUp else { return }
         networkUp = up
         if !up {
-            let running = downloads.filter { $0.state == .downloading }
+            let running = downloads.filter { $0.state == .downloading && $0.safariMirror == nil }
             running.forEach { hold($0.id) }
             Log.download("network down; held \(running.count) running download(s)")
             if !running.isEmpty { notifyUser("Bağlantı yok", "İndirmeler bekliyor, bağlantı gelince kendiliğinden sürecek") }

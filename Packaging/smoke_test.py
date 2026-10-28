@@ -10,6 +10,7 @@ import http.server
 import json
 import os
 import plistlib
+import shutil
 import struct
 import subprocess
 import sys
@@ -127,12 +128,19 @@ def safari_refusal_test():
 
     refused = f"{base}/forbidden/file.bin"
     rdir = safari_download("refused.bin", refused)
-    rec = wait(refused, ("failed",))
+    rec = wait(refused, ("downloading",))
     print("safari refused:", rec and rec.get("state"), rec and rec.get("error"), "bundle left:", rdir.exists())
-    if not rec or rec.get("state") != "failed" or "Safari" not in (rec.get("error") or ""):
-        fail("a refused Safari takeover did not stay in the list with the reason")
+    if not rec or rec.get("state") != "downloading" or not rec.get("safariMirror"):
+        fail("a refused Safari takeover was not mirrored in the list")
     if not rdir.exists():
         fail("Safari's own copy was deleted although MDM could not download the file")
+    # Safari finishes: the bundle turns into the finished file and the mirrored row completes.
+    (Path.home() / "Downloads" / "refused.bin").write_bytes(b"done")
+    shutil.rmtree(rdir)
+    rec = wait(refused, ("completed",), 20)
+    print("safari mirror finished:", rec and rec.get("state"))
+    if not rec or rec.get("state") != "completed":
+        fail("a mirrored Safari download did not complete when Safari finished")
 
     norange = f"{base}/norange/file.bin"
     ndir = safari_download("norange.bin", norange)
@@ -140,6 +148,13 @@ def safari_refusal_test():
     print("server without Range:", rec and rec.get("state"), rec and rec.get("error"), "bundle left:", ndir.exists())
     if not rec or rec.get("state") != "completed" or ndir.exists():
         fail("a server that refuses Range requests was not downloaded with a plain request")
+    # Safari reuses the bundle name of a finished download; the second one must be noticed too.
+    again = f"{base}/norange/again.bin"
+    adir = safari_download("norange.bin", again)
+    rec = wait(again, ("completed", "failed"))
+    print("same bundle name again:", rec and rec.get("state"))
+    if not rec or rec.get("state") != "completed":
+        fail("a second Safari download with a reused bundle name was ignored")
     server.shutdown()
 
     # A YouTube stream (googlevideo.com/videoplayback) Safari downloads from a watch page goes to MDM's

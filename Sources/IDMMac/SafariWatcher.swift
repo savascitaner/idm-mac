@@ -67,6 +67,9 @@ final class SafariWatcher: ObservableObject {
 
     private func scan(_ dir: String) {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []
+        // Safari reuses a bundle name once the earlier one is gone (finished, cancelled, file deleted);
+        // forget those paths so the same file downloaded again is noticed.
+        seen = seen.filter { !$0.hasPrefix(dir + "/") || FileManager.default.fileExists(atPath: $0) }
         for n in names where n.hasSuffix(".download") {
             let path = dir + "/" + n
             guard !seen.contains(path) else { continue }
@@ -172,6 +175,26 @@ final class SafariWatcher: ObservableObject {
         }
         guard let u = url ?? froms.first else { return nil }
         return (u, froms.first { $0 != u })
+    }
+
+    /// Bytes loaded and total size of a Safari "name.download" folder: from its Info.plist when Safari writes
+    /// the numbers there, else from the size of the partial file inside (total -1 when unknown).
+    nonisolated static func progress(of path: String) -> (Int64, Int64) {
+        var bytes: Int64 = 0
+        var total: Int64 = -1
+        let plist = URL(fileURLWithPath: path).appendingPathComponent("Info.plist")
+        if let data = try? Data(contentsOf: plist),
+           let dict = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any] {
+            if let b = (dict["DownloadEntryProgressBytesSoFar"] as? NSNumber)?.int64Value { bytes = b }
+            if let t = (dict["DownloadEntryProgressTotalToLoad"] as? NSNumber)?.int64Value, t > 0 { total = t }
+        }
+        if bytes == 0 {
+            let files = (try? FileManager.default.contentsOfDirectory(atPath: path)) ?? []
+            for f in files where f != "Info.plist" {
+                bytes += ((try? FileManager.default.attributesOfItem(atPath: path + "/" + f))?[.size] as? Int64) ?? 0
+            }
+        }
+        return (bytes, total)
     }
 
     private static func whereFrom(_ file: String) -> [String] {
