@@ -472,6 +472,12 @@ final class AppModel: ObservableObject {
             if downloads[i].safariPartial != nil { safariTakeoverStarted(at: i) }
         case .completed(let s):
             merge(s)
+            // A small file can finish before its first progress event is handled.
+            if let partial = downloads[i].safariPartial {
+                downloads[i].safariPartial = nil
+                try? FileManager.default.removeItem(atPath: partial)
+                SafariWatcher.shared.log("devralındı ve bitti, Safari'nin kopyası silindi: \(downloads[i].url)")
+            }
             downloads[i].state = .completed
             downloads[i].finalPath = s.finalPath
             if !s.fileName.isEmpty { downloads[i].fileName = s.fileName }
