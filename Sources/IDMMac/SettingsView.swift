@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     /// Taller only for the guide's snapshot, so every section shows.
-    static var height: CGFloat = 840
+    static var height: CGFloat = 920
 
     @EnvironmentObject var model: AppModel
     @ObservedObject private var safariWatcher = SafariWatcher.shared
@@ -26,6 +26,8 @@ struct SettingsView: View {
     @AppStorage("autoInstallUpdate") private var autoInstallUpdate: Bool = true
     @AppStorage("glassLook") private var glassLook: Bool = true
     @AppStorage("folderRulesOn") private var folderRulesOn = false
+    @AppStorage("videoSubtitles") private var videoSubtitles = false
+    @AppStorage("subtitleLanguages") private var subtitleLanguages = "tr,en"
     @AppStorage("menuBarInfo") private var menuBarInfo: String = "icon"
     @ObservedObject private var updater = Updater.shared
     @State private var updateOutput = ""
@@ -99,6 +101,13 @@ struct SettingsView: View {
                     Text("Hız").tag("speed")
                     Text("Yüzde").tag("percent")
                 }
+            }
+            Section("Video") {
+                Toggle("Videoya altyazıyı da göm (varsa)", isOn: $videoSubtitles)
+                TextField("Altyazı dilleri", text: $subtitleLanguages, prompt: Text("tr,en"))
+                    .disabled(!videoSubtitles)
+                Text("Yükleyenin hazırladığı altyazılar mp4 dosyasının içine konur; altyazısı olmayan videolar her zamanki gibi iner.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Klasörler") {
                 Toggle("İndirmeleri türüne göre alt klasörlere ayır (Video, Müzik, Arşivler, Uygulamalar, Belgeler)", isOn: $folderRulesOn)
