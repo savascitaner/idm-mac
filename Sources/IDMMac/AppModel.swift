@@ -516,7 +516,9 @@ final class AppModel: ObservableObject {
                 fileEngines[id] = nil
                 lastBytes[id] = nil
                 save()
-                return            if downloads[i].browserFallback == "safari", msg == SegmentedDownloader.htmlInsteadOfFile {
+                return
+            }
+            if downloads[i].browserFallback == "safari", msg == SegmentedDownloader.htmlInsteadOfFile {
                 // A guessed link that turned out to be a web page: open it in Safari again and forget it.
                 Log.download("guessed link is a page, back to Safari: \(downloads[i].url)")
                 if let t = downloads[i].tempPath { try? FileManager.default.removeItem(atPath: t) }
