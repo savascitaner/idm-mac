@@ -297,6 +297,22 @@ def main():
     except Exception as e:  # noqa: BLE001
         print("screenshot failed:", e)
 
+    # Dock click: the running app must answer a "reopen" event by fronting its main window.
+    reopen_ok = None
+    try:
+        log = SUPPORT / "mdm.log"
+        before = log.read_text(errors="ignore") if log.exists() else ""
+        subprocess.run(["osascript", "-e", 'tell application "MDM" to reopen'], timeout=20)
+        time.sleep(3)
+        text = log.read_text(errors="ignore") if log.exists() else ""
+        new = text[len(before):] if text.startswith(before) else text
+        print("reopen log:", new.strip().splitlines()[-3:])
+        reopen_ok = "dock reopen" in new
+    except Exception as e:  # noqa: BLE001
+        print("reopen check skipped:", e)
+    if reopen_ok is False:
+        fail("Dock reopen event did not reach the app (no 'dock reopen' line in mdm.log)")
+
     # Pictures of the other windows for the installation guide (best effort).
     try:
         subprocess.run(["osascript", "-e", 'quit app "MDM"'], timeout=30)

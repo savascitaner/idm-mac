@@ -83,15 +83,23 @@ extension AppModel {
         func tick(_ left: Int) {
             guard shown.open else { return }
             alert.informativeText = "\(left) saniye içinde \(action.future)."
-            guard left > 0 else { return NSApp.stopModal(withCode: .alertFirstButtonReturn) }
+            guard left > 0 else {
+                // The alert is a sheet on the main window (or, as a last resort, a modal alert).
+                if let parent = alert.window.sheetParent {
+                    parent.endSheet(alert.window, returnCode: .alertFirstButtonReturn)
+                } else {
+                    NSApp.stopModal(withCode: .alertFirstButtonReturn)
+                }
+                return
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { tick(left - 1) }
         }
         tick(60)
-        NSApp.activate(ignoringOtherApps: true)
-        let answer = alert.runModal()
-        shown.open = false
-        guard answer == .alertFirstButtonReturn else { return }
-        perform(action)
+        MainWindow.present(alert) { [weak self] answer in
+            shown.open = false
+            guard answer == .alertFirstButtonReturn else { return }
+            self?.perform(action)
+        }
     }
 
     private func perform(_ action: Schedule.AfterAll) {

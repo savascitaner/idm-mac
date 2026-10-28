@@ -379,7 +379,6 @@ struct DockTileView: View {
 
 struct MenuBarPanel: View {
     @EnvironmentObject var model: AppModel
-    @Environment(\.openWindow) private var openWindow
     @AppStorage("slowMode") private var slowMode = false
     @AppStorage("slowModeKB") private var slowModeKB = 256
     @AppStorage("afterAll") private var afterAll = Schedule.AfterAll.none.rawValue
@@ -431,8 +430,7 @@ struct MenuBarPanel: View {
             Divider()
             HStack(spacing: 14) {
                 Button {
-                    NSApp.activate(ignoringOtherApps: true)
-                    openWindow(id: "main")
+                    MainWindow.show()
                 } label: { Label("Pencere", systemImage: "macwindow") }
                 Button {
                     if let s = NSPasteboard.general.string(forType: .string) { model.addFromUserInput(s) }

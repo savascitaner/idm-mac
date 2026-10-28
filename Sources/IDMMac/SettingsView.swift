@@ -23,6 +23,7 @@ struct SettingsView: View {
     @AppStorage("scheduleStop") private var scheduleStop: Int = 8 * 3600
     @AppStorage("afterAll") private var afterAll: String = Schedule.AfterAll.none.rawValue
     @AppStorage("autoUpdateCheck") private var autoUpdateCheck: Bool = true
+    @AppStorage("autoInstallUpdate") private var autoInstallUpdate: Bool = true
     @ObservedObject private var updater = Updater.shared
     @State private var updateOutput = ""
 
@@ -90,6 +91,9 @@ struct SettingsView: View {
             }
             Section("Güncelleme") {
                 Toggle("Yeni sürümleri kendiliğinden denetle", isOn: $autoUpdateCheck)
+                Toggle("Yeni sürümü kendiliğinden kur (indirme yokken)", isOn: $autoInstallUpdate)
+                    .disabled(!autoUpdateCheck)
+                Button("Tanı kaydını göster") { NSWorkspace.shared.activateFileViewerSelecting([Log.file]) }
                 HStack {
                     Text(updater.status.isEmpty ? "Sürüm: \(Updater.currentCommit.prefix(7))" : updater.status)
                         .font(.caption).foregroundStyle(.secondary).lineLimit(2)
