@@ -3,9 +3,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct SettingsView: View {
-    /// Taller only for the guide's snapshot, so every section shows.
-    static var height: CGFloat = 920
-
     @EnvironmentObject var model: AppModel
     @ObservedObject private var safariWatcher = SafariWatcher.shared
     @AppStorage("downloadDirectory") private var downloadDirectory: String = FileManager.default
@@ -34,6 +31,7 @@ struct SettingsView: View {
     @State private var updateOutput = ""
 
     var body: some View {
+        TabView {
         Form {
             Section("İndirme") {
                 HStack {
@@ -62,6 +60,15 @@ struct SettingsView: View {
                         .controlSize(.small)
                 }
             }
+            Section("Klasörler") {
+                Toggle("İndirmeleri türüne göre alt klasörlere ayır (Video, Müzik, Arşivler, Uygulamalar, Belgeler)", isOn: $folderRulesOn)
+                Text("Yalnızca varsayılan indirme klasörü için geçerli; elle seçtiğin klasör olduğu gibi kalır.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .tabItem { Label(L("İndirme"), systemImage: "arrow.down.circle") }
+        Form {
             Section("Hız") {
                 HStack {
                     Text("Hız sınırı")
@@ -95,6 +102,10 @@ struct SettingsView: View {
                 Text("Bir kez uygulanır, ardından \"Bir şey yapma\"ya döner. Yapmadan önce 60 saniye boyunca vazgeçme şansı verir.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+        }
+        .formStyle(.grouped)
+        .tabItem { Label(L("Hız"), systemImage: "speedometer") }
+        Form {
             Section("Görünüm") {
                 Picker("Dil", selection: $appLanguage) {
                     Text("Otomatik (macOS dili)").tag("auto")
@@ -116,18 +127,31 @@ struct SettingsView: View {
                     Text("Yüzde").tag("percent")
                 }
             }
+        }
+        .formStyle(.grouped)
+        .tabItem { Label(L("Görünüm"), systemImage: "paintbrush") }
+        Form {
             Section("Video") {
                 Toggle("Videoya altyazıyı da göm (varsa)", isOn: $videoSubtitles)
                 TextField("Altyazı dilleri", text: $subtitleLanguages, prompt: Text("tr,en"))
                     .disabled(!videoSubtitles)
                 Text("Yükleyenin hazırladığı ve YouTube'un otomatik oluşturduğu altyazılar mp4 dosyasının içine konur; altyazısı olmayan videolar her zamanki gibi iner.")
                     .font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Text("yt-dlp: " + (Tools.ytdlp?.path ?? L("bulunamadı"))).font(.caption).lineLimit(1).truncationMode(.middle)
+                    Spacer()
+                    Button("Şimdi güncelle") {
+                        updateOutput = L("Güncelleniyor…")
+                        Tools.updateYtdlpIfNeeded(force: true) { updateOutput = $0 }
+                    }
+                }
+                Text("ffmpeg: " + (Tools.ffmpeg?.path ?? L("bulunamadı"))).font(.caption)
+                if !updateOutput.isEmpty { Text(updateOutput).font(.caption).foregroundStyle(.secondary).lineLimit(3) }
             }
-            Section("Klasörler") {
-                Toggle("İndirmeleri türüne göre alt klasörlere ayır (Video, Müzik, Arşivler, Uygulamalar, Belgeler)", isOn: $folderRulesOn)
-                Text("Yalnızca varsayılan indirme klasörü için geçerli; elle seçtiğin klasör olduğu gibi kalır.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
+        }
+        .formStyle(.grouped)
+        .tabItem { Label(L("Video"), systemImage: "film") }
+        Form {
             Section("Güncelleme") {
                 Toggle("Yeni sürümleri kendiliğinden denetle", isOn: $autoUpdateCheck)
                 Toggle("Yeni sürümü kendiliğinden kur (indirme yokken)", isOn: $autoInstallUpdate)
@@ -144,21 +168,11 @@ struct SettingsView: View {
                     Button("Şimdi denetle") { updater.check() }.disabled(updater.installing)
                 }
             }
-            Section("Video") {
-                HStack {
-                    Text("yt-dlp: " + (Tools.ytdlp?.path ?? L("bulunamadı"))).font(.caption).lineLimit(1).truncationMode(.middle)
-                    Spacer()
-                    Button("Şimdi güncelle") {
-                        updateOutput = L("Güncelleniyor…")
-                        Tools.updateYtdlpIfNeeded(force: true) { updateOutput = $0 }
-                    }
-                }
-                Text("ffmpeg: " + (Tools.ffmpeg?.path ?? L("bulunamadı"))).font(.caption)
-                if !updateOutput.isEmpty { Text(updateOutput).font(.caption).foregroundStyle(.secondary).lineLimit(3) }
-            }
         }
         .formStyle(.grouped)
-        .frame(width: 540, height: Self.height)
+        .tabItem { Label(L("Güncelleme"), systemImage: "arrow.triangle.2.circlepath") }
+        }
+        .frame(width: 560, height: 470)
         .padding()
     }
 

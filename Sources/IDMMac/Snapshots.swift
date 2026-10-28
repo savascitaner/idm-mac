@@ -15,12 +15,11 @@ enum Snapshots {
             main.makeKeyAndOrderFront(nil)
             write(main, dir, "main")
         }
-        SettingsView.height = 1180
         let links = LinkRequest(sampleLinks, headers: [:], cookies: [])
         let steps: [(String, AnyView, NSSize, Double)] = [
             ("setup-chrome", AnyView(ExtensionHelpSheet(browser: 0).environmentObject(model)), NSSize(width: 560, height: 470), 1),
             ("setup-safari", AnyView(ExtensionHelpSheet(browser: 1).environmentObject(model)), NSSize(width: 560, height: 470), 1),
-            ("settings", AnyView(SettingsView().environmentObject(model)), NSSize(width: 580, height: 1240), 1),
+            ("settings", AnyView(SettingsView().environmentObject(model)), NSSize(width: 600, height: 520), 1),
             ("linkpicker", AnyView(LinkPickerView(request: links, dismiss: {})), NSSize(width: 640, height: 520), 1),
             ("search", AnyView(TorrentSearchView(initialQuery: "night of the living dead").environmentObject(model)), NSSize(width: 820, height: 520), 12),
             ("menubar", AnyView(MenuBarPanel().environmentObject(model)), NSSize(width: 340, height: 420), 1),
