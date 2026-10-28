@@ -133,6 +133,7 @@ struct ContentView: View {
         if d.state == .completed {
             Button("Aç") { model.open(d) }
             Button("Finder'da göster") { model.reveal(d) }
+            Button("SHA-256 hesapla / panodakiyle karşılaştır") { model.verifyChecksum(d) }
         }
         if d.isActive { Button("Duraklat") { model.pause(d.id) } }
         if d.state == .paused || d.state == .failed { Button("Sürdür") { model.resume(d.id) } }
