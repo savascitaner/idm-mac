@@ -490,19 +490,19 @@ final class TorrentDownloader {
 
             switch state {
             case "initializing":
-                self.note = "Dosyalar denetleniyor"
+                self.note = L("Dosyalar denetleniyor")
             case "paused":
-                self.note = "Torrent motorunda duraklatılmış"
+                self.note = L("Torrent motorunda duraklatılmış")
             default:
                 if peers > 0 {
-                    self.note = "\(peers) eşe bağlı" + (seeders > 0 ? " (\(seeders) tam kaynak)" : "")
-                        + (idle >= 30 ? " · eşler veri göndermiyor" : "")
+                    self.note = L("%lld eşe bağlı", peers) + (seeders > 0 ? " " + L("(%lld tam kaynak)", seeders) : "")
+                        + (idle >= 30 ? " · " + L("eşler veri göndermiyor") : "")
                 } else if seen == 0 {
-                    self.note = idle >= 120 ? "Kaynak bulunamadı: bu torrenti şu an paylaşan yok"
-                                            : "Eş aranıyor (izleyici ve DHT)"
+                    self.note = idle >= 120 ? L("Kaynak bulunamadı: bu torrenti şu an paylaşan yok")
+                                            : L("Eş aranıyor (izleyici ve DHT)")
                 } else {
-                    self.note = idle >= 120 ? "Kaynak bulunamadı: \(seen) eş bulundu ama hiçbiri bağlanmadı"
-                                            : "\(seen) eş bulundu, bağlanılıyor"
+                    self.note = idle >= 120 ? L("Kaynak bulunamadı: %lld eş bulundu ama hiçbiri bağlanmadı", seen)
+                                            : L("%lld eş bulundu, bağlanılıyor", seen)
                 }
             }
 

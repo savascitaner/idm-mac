@@ -19,7 +19,7 @@ final class VideoWindowController {
         let view = VideoPickerView(request: req) { [weak self] in self?.close(req.id) }
         let host = NSHostingController(rootView: view)
         let w = NSPanel(contentViewController: host)
-        w.title = "Videoyu indir"
+        w.title = L("Videoyu indir")
         w.styleMask = [.titled, .closable, .utilityWindow]
         w.level = .floating
         w.isReleasedWhenClosed = false
@@ -139,7 +139,7 @@ struct VideoPickerView: View {
                     }
                 }
                 if let info {
-                    Button(wholeList ? "Seçilenleri indir (\(picked.count))" : "İndir") {
+                    Button(wholeList ? L("Seçilenleri indir (%lld)", picked.count) : L("İndir")) {
                         let option = selection ?? info.options[0]
                         let cookies = usedCookies ? request.cookies : []
                         if wholeList, let playlist {
@@ -209,7 +209,7 @@ struct VideoPickerView: View {
     private func run(_ attempts: [(url: String, cookies: URL?)], firstError: Error?,
                      done: @escaping (Result<(VideoInfo, Bool), Error>) -> Void) {
         guard let a = attempts.first else {
-            done(.failure(firstError ?? YtDlp.Failure("Video bilgisi alınamadı")))
+            done(.failure(firstError ?? YtDlp.Failure(L("Video bilgisi alınamadı"))))
             return
         }
         YtDlp.probe(url: a.url, cookieFile: a.cookies, headers: request.headers) { r in

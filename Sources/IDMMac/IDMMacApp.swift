@@ -82,6 +82,8 @@ struct IDMMacApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var model = AppModel.shared
 
+    init() { AppLanguage.apply() }
+
     var body: some Scene {
         Window("MDM - Mac Download Manager", id: "main") {
             ContentView()
@@ -168,7 +170,7 @@ enum SignatureInfo {
     }()
 
     static var summary: String {
-        developer.map { "İmza: \($0) · Apple tarafından doğrulanmış" } ?? "İmza: Apple Developer ID yok (imzasız derleme)"
+        developer.map { L("İmza: %@ · Apple tarafından doğrulanmış", $0) } ?? L("İmza: Apple Developer ID yok (imzasız derleme)")
     }
 }
 
@@ -179,9 +181,9 @@ enum AboutPanel {
         let credits = NSMutableAttributedString()
         let body: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor.labelColor]
         let small: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 10), .foregroundColor: NSColor.secondaryLabelColor]
-        credits.append(NSAttributedString(string: "Bu uygulama \(owner) tarafından, kendi kullanımı için yaptırılmıştır. Tüm hakları \(owner)'ya aittir; izinsiz dağıtılamaz.\n\n", attributes: body))
+        credits.append(NSAttributedString(string: L("Bu uygulama %@ tarafından, kendi kullanımı için yaptırılmıştır. Tüm hakları saklıdır; izinsiz dağıtılamaz.", owner) + "\n\n", attributes: body))
         credits.append(NSAttributedString(string: SignatureInfo.summary + "\n\n", attributes: body))
-        credits.append(NSAttributedString(string: "İçindeki açık kaynak bileşenler: yt-dlp (Unlicense), FFmpeg (GPL/LGPL), Deno (MIT). Ayrıntılar uygulama paketindeki THIRD_PARTY.md dosyasında.", attributes: small))
+        credits.append(NSAttributedString(string: L("İçindeki açık kaynak bileşenler: yt-dlp (Unlicense), FFmpeg (GPL/LGPL), Deno (MIT). Ayrıntılar uygulama paketindeki THIRD_PARTY.md dosyasında."), attributes: small))
         NSApp.activate(ignoringOtherApps: true)
         NSApp.orderFrontStandardAboutPanel(options: [
             .applicationName: "MDM - Mac Download Manager",

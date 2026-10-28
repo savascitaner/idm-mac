@@ -1,0 +1,8 @@
+{
+  "description": {
+    "message": "Sends downloads and videos to the MDM app."
+  },
+  "commandVideo": {
+    "message": "Download the video on this page with MDM"
+  }
+}

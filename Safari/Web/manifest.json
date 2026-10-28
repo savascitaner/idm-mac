@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MDM - Mac Download Manager",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "İndirmeleri ve videoları MDM uygulamasına gönderir.",
   "permissions": [
     "nativeMessaging",
@@ -34,6 +34,7 @@
         "https://*/*"
       ],
       "js": [
+        "i18n.js",
         "content.js"
       ],
       "all_frames": true,

@@ -26,10 +26,10 @@ enum Schedule {
 
         var title: String {
             switch self {
-            case .none: return "Bir şey yapma"
-            case .sleep: return "Mac'i uyut"
-            case .shutdown: return "Mac'i kapat"
-            case .quit: return "MDM'den çık"
+            case .none: return L("Bir şey yapma")
+            case .sleep: return L("Mac'i uyut")
+            case .shutdown: return L("Mac'i kapat")
+            case .quit: return L("MDM'den çık")
             }
         }
 
@@ -37,9 +37,9 @@ enum Schedule {
         var future: String {
             switch self {
             case .none: return ""
-            case .sleep: return "Mac uyutulacak"
-            case .shutdown: return "Mac kapatılacak"
-            case .quit: return "MDM kapanacak"
+            case .sleep: return L("Mac uyutulacak")
+            case .shutdown: return L("Mac kapatılacak")
+            case .quit: return L("MDM kapanacak")
             }
         }
 
@@ -60,7 +60,7 @@ extension AppModel {
             let running = downloads.filter { $0.state == .downloading }
             running.forEach { hold($0.id) }
             if !running.isEmpty {
-                notifyUser("Zamanlayıcı", "İndirmeler durdu, saat \(Schedule.clock(Schedule.start)) olunca sürecek")
+                notifyUser("Zamanlayıcı", L("İndirmeler durdu, saat %@ olunca sürecek", Schedule.clock(Schedule.start)))
             }
         }
     }
@@ -76,13 +76,13 @@ extension AppModel {
     /// Asks for 60 seconds before acting, so someone at the Mac can cancel.
     private func countDown(_ action: Schedule.AfterAll) {
         let alert = NSAlert()
-        alert.messageText = "İndirmelerin hepsi bitti"
-        alert.addButton(withTitle: "Şimdi")
-        alert.addButton(withTitle: "Vazgeç")
+        alert.messageText = L("İndirmelerin hepsi bitti")
+        alert.addButton(withTitle: L("Şimdi"))
+        alert.addButton(withTitle: L("Vazgeç"))
         let shown = ModalFlag()
         func tick(_ left: Int) {
             guard shown.open else { return }
-            alert.informativeText = "\(left) saniye içinde \(action.future)."
+            alert.informativeText = L("%lld saniye içinde %@.", left, action.future)
             guard left > 0 else {
                 // The alert is a sheet on the main window (or, as a last resort, a modal alert).
                 if let parent = alert.window.sheetParent {

@@ -9,7 +9,7 @@ final class SafariWatcher: ObservableObject {
     static let shared = SafariWatcher()
 
     /// One line for the settings window: what is watched, or why it isn't.
-    @Published private(set) var status = "Başlatılmadı"
+    @Published private(set) var status = L("Başlatılmadı")
     static let logFile = Paths.support.appendingPathComponent("safari-izleme.log")
 
     private var watched: [String: DispatchSourceFileSystemObject] = [:]
@@ -50,9 +50,9 @@ final class SafariWatcher: ObservableObject {
             log("izleniyor: \(d)")
         }
         if failed.isEmpty {
-            status = "Çalışıyor: " + watched.keys.sorted().map { ($0 as NSString).abbreviatingWithTildeInPath }.joined(separator: ", ")
+            status = L("Çalışıyor: ") + watched.keys.sorted().map { ($0 as NSString).abbreviatingWithTildeInPath }.joined(separator: ", ")
         } else {
-            status = "Erişilemiyor: " + failed.map { ($0 as NSString).abbreviatingWithTildeInPath }.joined(separator: ", ")
+            status = L("Erişilemiyor: ") + failed.map { ($0 as NSString).abbreviatingWithTildeInPath }.joined(separator: ", ")
                 + " (Sistem Ayarları > Gizlilik ve Güvenlik > Dosyalar ve Klasörler'de MDM'ye izin ver)"
             log("erişilemedi: \(failed.joined(separator: ", ")) errno=\(errno)")
             DispatchQueue.main.asyncAfter(deadline: .now() + 5) { self.attach() }

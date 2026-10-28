@@ -8,13 +8,13 @@ enum Category: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .video: return "Video"
-        case .music: return "Müzik"
-        case .program: return "Programlar"
-        case .document: return "Belgeler"
-        case .archive: return "Arşivler"
-        case .torrent: return "Torrentler"
-        case .other: return "Diğer"
+        case .video: return L("Video")
+        case .music: return L("Müzik")
+        case .program: return L("Programlar")
+        case .document: return L("Belgeler")
+        case .archive: return L("Arşivler")
+        case .torrent: return L("Torrentler")
+        case .other: return L("Diğer")
         }
     }
 
@@ -135,7 +135,7 @@ struct Sidebar: View {
     private func row(_ item: SidebarItem, _ title: String, _ icon: String, _ color: Color, _ count: Int) -> some View {
         HStack {
             Image(systemName: icon).foregroundStyle(color).frame(width: 18)
-            Text(title)
+            Text(L(title))
             Spacer()
             if count > 0 {
                 Text("\(count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
@@ -161,12 +161,12 @@ extension SidebarItem {
 
     var title: String {
         switch self {
-        case .all: return "Tüm indirmeler"
-        case .active: return "Etkin"
-        case .completed: return "Tamamlanan"
-        case .failed: return "Hatalı"
+        case .all: return L("Tüm indirmeler")
+        case .active: return L("Etkin")
+        case .completed: return L("Tamamlanan")
+        case .failed: return L("Hatalı")
         case .category(let c): return c.title
-        case .search: return "Torrent ara"
+        case .search: return L("Torrent ara")
         }
     }
 }

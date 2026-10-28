@@ -101,14 +101,14 @@ enum Format {
 
     static func speed(_ bps: Double) -> String {
         guard bps > 0 else { return "" }
-        return ByteCountFormatter.string(fromByteCount: Int64(bps), countStyle: .file) + "/sn"
+        return ByteCountFormatter.string(fromByteCount: Int64(bps), countStyle: .file) + L("/sn")
     }
 
     static func eta(remaining: Int64, speed: Double) -> String {
         guard speed > 1, remaining > 0 else { return "" }
         let s = Int(Double(remaining) / speed)
-        if s >= 3600 { return String(format: "%d sa %02d dk", s / 3600, (s % 3600) / 60) }
-        if s >= 60 { return String(format: "%d dk %02d sn", s / 60, s % 60) }
-        return "\(s) sn"
+        if s >= 3600 { return String(format: L("%d sa %02d dk"), s / 3600, (s % 3600) / 60) }
+        if s >= 60 { return String(format: L("%d dk %02d sn"), s / 60, s % 60) }
+        return L("%lld sn", s)
     }
 }

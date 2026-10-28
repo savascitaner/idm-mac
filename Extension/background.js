@@ -1,6 +1,8 @@
 // MDM Chrome extension: hands browser downloads and page videos to the Mac app
 // through Chrome Native Messaging (host: com.savascitaner.idmmac).
 
+if (typeof importScripts === "function") importScripts("i18n.js");
+
 const HOST = "com.savascitaner.idmmac";
 
 const DEFAULTS = {
@@ -413,9 +415,9 @@ chrome.commands.onCommand.addListener(async (command) => {
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({ id: "idm-link", title: "MDM ile indir", contexts: ["link", "image", "audio"] });
-    chrome.contextMenus.create({ id: "idm-video", title: "Bu videoyu MDM ile indir", contexts: ["video", "page", "frame"] });
-    chrome.contextMenus.create({ id: "idm-all", title: "Sayfadaki tüm linkleri MDM ile indir…", contexts: ["page"] });
+    chrome.contextMenus.create({ id: "idm-link", title: T("MDM ile indir"), contexts: ["link", "image", "audio"] });
+    chrome.contextMenus.create({ id: "idm-video", title: T("Bu videoyu MDM ile indir"), contexts: ["video", "page", "frame"] });
+    chrome.contextMenus.create({ id: "idm-all", title: T("Sayfadaki tüm linkleri MDM ile indir…"), contexts: ["page"] });
   });
 });
 

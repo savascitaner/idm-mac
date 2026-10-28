@@ -29,6 +29,7 @@ struct SettingsView: View {
     @AppStorage("videoSubtitles") private var videoSubtitles = false
     @AppStorage("subtitleLanguages") private var subtitleLanguages = "tr,en"
     @AppStorage("menuBarInfo") private var menuBarInfo: String = "icon"
+    @AppStorage("appLanguage") private var appLanguage: String = "auto"
     @ObservedObject private var updater = Updater.shared
     @State private var updateOutput = ""
 
@@ -55,7 +56,7 @@ struct SettingsView: View {
                         .help("Başka bir uygulamada ya da tarayıcıda tıklanan magnet linklerini MDM açar.")
                 }
                 HStack {
-                    Text("Safari izleme: " + safariWatcher.status).font(.caption).foregroundStyle(.secondary)
+                    Text(L("Safari izleme: ") + safariWatcher.status).font(.caption).foregroundStyle(.secondary)
                     Spacer()
                     Button("Kaydı göster") { NSWorkspace.shared.activateFileViewerSelecting([SafariWatcher.logFile]) }
                         .controlSize(.small)
@@ -95,6 +96,19 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Görünüm") {
+                Picker("Dil", selection: $appLanguage) {
+                    Text("Otomatik (macOS dili)").tag("auto")
+                    Text("Türkçe").tag("tr")
+                    Text("English").tag("en")
+                }
+                .onChange(of: appLanguage) { new in
+                    AppLanguage.change(to: new)
+                    let alert = NSAlert()
+                    alert.messageText = L("Dil değişikliği için MDM'nin yeniden açılması gerekiyor")
+                    alert.addButton(withTitle: L("Yeniden aç"))
+                    alert.addButton(withTitle: L("Sonra"))
+                    if alert.runModal() == .alertFirstButtonReturn { AppLanguage.relaunch() }
+                }
                 Toggle("Cam görünüm", isOn: $glassLook)
                 Picker("Menü çubuğunda göster", selection: $menuBarInfo) {
                     Text("Yalnızca simge").tag("icon")
@@ -120,11 +134,11 @@ struct SettingsView: View {
                     .disabled(!autoUpdateCheck)
                 Button("Tanı kaydını göster") { NSWorkspace.shared.activateFileViewerSelecting([Log.file]) }
                 HStack {
-                    Text(updater.status.isEmpty ? "Sürüm: \(Updater.currentCommit.prefix(7))" : updater.status)
+                    Text(updater.status.isEmpty ? L("Sürüm: %@", String(Updater.currentCommit.prefix(7))) : updater.status)
                         .font(.caption).foregroundStyle(.secondary).lineLimit(2)
                     Spacer()
                     if updater.available != nil {
-                        Button(updater.installing ? "Kuruluyor…" : "Güncelle ve yeniden aç") { updater.install() }
+                        Button(updater.installing ? L("Kuruluyor…") : L("Güncelle ve yeniden aç")) { updater.install() }
                             .disabled(updater.installing)
                     }
                     Button("Şimdi denetle") { updater.check() }.disabled(updater.installing)
@@ -132,14 +146,14 @@ struct SettingsView: View {
             }
             Section("Video") {
                 HStack {
-                    Text("yt-dlp: " + (Tools.ytdlp?.path ?? "bulunamadı")).font(.caption).lineLimit(1).truncationMode(.middle)
+                    Text("yt-dlp: " + (Tools.ytdlp?.path ?? L("bulunamadı"))).font(.caption).lineLimit(1).truncationMode(.middle)
                     Spacer()
                     Button("Şimdi güncelle") {
-                        updateOutput = "Güncelleniyor…"
+                        updateOutput = L("Güncelleniyor…")
                         Tools.updateYtdlpIfNeeded(force: true) { updateOutput = $0 }
                     }
                 }
-                Text("ffmpeg: " + (Tools.ffmpeg?.path ?? "bulunamadı")).font(.caption)
+                Text("ffmpeg: " + (Tools.ffmpeg?.path ?? L("bulunamadı"))).font(.caption)
                 if !updateOutput.isEmpty { Text(updateOutput).font(.caption).foregroundStyle(.secondary).lineLimit(3) }
             }
         }
