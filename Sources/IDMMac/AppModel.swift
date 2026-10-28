@@ -451,6 +451,10 @@ final class AppModel: ObservableObject {
             downloads[i].connections = s.connections
             if let h = s.torrentHash { downloads[i].torrentHash = h }
             if downloads[i].kind == .torrent, !s.fileName.isEmpty { downloads[i].fileName = s.fileName }
+            if downloads[i].kind == .torrent {
+                downloads[i].note = s.note
+                if s.webSeed { downloads[i].torrentWebSeed = true }
+            }
             if downloads[i].kind == .file {
                 downloads[i].segments = s.segments
                 downloads[i].tempPath = s.tempPath

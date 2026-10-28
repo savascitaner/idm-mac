@@ -197,6 +197,31 @@ def torrent_test():
         print("WARNING: no torrent data arrived in time (peers may be unreachable from CI)")
 
 
+def archive_torrent_test():
+    """An archive.org torrent (the one from the in-app search that stalled on a Mac): nobody seeds it over
+    BitTorrent, so MDM must notice the stall and fetch it from the web seeds listed in the .torrent."""
+    turl = "https://archive.org/download/RareTitanicFilm/RareTitanicFilm_archive.torrent"
+    print("archive torrent reply:", talk([{"type": "url", "id": "t2", "url": turl, "userAgent": "Mozilla/5.0", "cookies": []}]))
+    deadline = time.time() + 240
+    rec = None
+    while time.time() < deadline:
+        time.sleep(5)
+        try:
+            rec = next((d for d in json.loads(DB.read_text()) if d.get("url") == turl), None)
+        except (ValueError, OSError):
+            continue
+        if rec:
+            print(f"  archive torrent state={rec['state']} {rec['receivedBytes']}/{rec['totalBytes']} "
+                  f"peers={rec.get('connections')} webSeed={rec.get('torrentWebSeed')} note={rec.get('note')} err={rec.get('error')}")
+            if rec["state"] in ("failed", "completed") or rec["receivedBytes"] > 0:
+                break
+    log = SUPPORT / "mdm.log"
+    if log.exists():
+        print("torrent log:", "\n".join(l for l in log.read_text(errors="replace").splitlines() if "[torrent]" in l)[-4000:])
+    if not rec or rec["state"] == "failed" or rec["receivedBytes"] <= 0:
+        fail("archive.org torrent got no data (neither peers nor web seeds)")
+
+
 def main():
     search_test()
     print("ping before launch:", talk([{"type": "ping", "id": "p0"}]))
@@ -314,6 +339,7 @@ def main():
     safari_refusal_test()
 
     torrent_test()
+    archive_torrent_test()
 
     # Safari extension: bundled and signed, and the idmmac:// bridge it uses reaches the app.
     appex = APP / "Contents/PlugIns/IDMMacSafari.appex"
