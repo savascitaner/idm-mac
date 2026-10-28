@@ -162,6 +162,24 @@ def safari_refusal_test():
     if ydir.exists() or not routed:
         fail("a YouTube stream Safari downloaded was not sent to the video window")
 
+    # A stream from YouTube Studio ("İndir" of the owner's own video) is not a watch page: it is downloaded as
+    # a file, never sent to yt-dlp (which would end at the sign-in page), and Safari keeps its copy on failure.
+    sdir2 = Path.home() / "Downloads" / "studio-video.download"
+    sdir2.mkdir(parents=True, exist_ok=True)
+    surl2 = "https://rr2---sn-test.googlevideo.com/videoplayback?expire=1&itag=22&studio=1"
+    spart = sdir2 / "studio-video"
+    spart.write_bytes(b"")
+    froms = plistlib.dumps([surl2, "https://studio.youtube.com/video/abc/edit"], fmt=plistlib.FMT_BINARY).hex()
+    subprocess.run(["xattr", "-wx", "com.apple.metadata:kMDItemWhereFroms", froms, str(spart)], check=True)
+    plistlib.dump({"DownloadEntryURL": surl2, "DownloadEntryPath": str(sdir2)}, open(sdir2 / "Info.plist", "wb"))
+    rec = wait(surl2, ("failed", "completed"), 40)
+    text = log.read_text(errors="replace") if log.exists() else ""
+    print("studio stream:", rec and rec.get("state"), rec and rec.get("error"), "bundle left:", sdir2.exists())
+    if not rec or "izleme sayfasından gelmiyor" not in text or "video penceresi açılıyor: https://studio" in text:
+        fail("a YouTube Studio download was sent to the video window instead of being fetched as a file")
+    if rec.get("state") == "failed" and not sdir2.exists():
+        fail("Safari's copy of a refused Studio download was removed")
+
 
 def torrent_test():
     """A Debian netinst torrent through the native host: rqbit must add it and start downloading."""

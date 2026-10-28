@@ -104,9 +104,10 @@ final class SafariWatcher: ObservableObject {
             // A googlevideo.com link is one stream of a YouTube video, tied to Safari's session (and IP):
             // fetching it directly gives 403 or only a piece. MDM downloads the video from its page with
             // yt-dlp instead, the way the "Bu videoyu indir" button does.
-            guard let page = referrer, let host = URL(string: page)?.host?.lowercased(),
-                  host == "youtube.com" || host.hasSuffix(".youtube.com") || host == "youtu.be" else {
-                log("YouTube akışı ama sayfası bilinmiyor, doğrudan deneniyor: \(url)")
+            guard let page = referrer, Self.isWatchPage(page) else {
+                // Not a public video page (YouTube Studio's "İndir" hands out the owner's own file, which
+                // yt-dlp can't get: it is sent to the sign-in page). Download the file itself.
+                log("YouTube akışı ama izleme sayfasından gelmiyor (\(referrer ?? "sayfa yok")), dosya olarak indiriliyor: \(url)")
                 return takeFile(path, url: url, referrer: referrer)
             }
             try? FileManager.default.removeItem(atPath: path)
@@ -115,6 +116,14 @@ final class SafariWatcher: ObservableObject {
             return
         }
         takeFile(path, url: url, referrer: referrer)
+    }
+
+    /// A public YouTube video page yt-dlp can read: watch, shorts, live, embed or youtu.be.
+    nonisolated static func isWatchPage(_ s: String) -> Bool {
+        guard let u = URL(string: s), let host = u.host?.lowercased() else { return false }
+        if host == "youtu.be" { return u.path.count > 1 }
+        guard host == "youtube.com" || host.hasSuffix(".youtube.com"), host != "studio.youtube.com" else { return false }
+        return ["/watch", "/shorts/", "/live/", "/embed/"].contains { u.path.hasPrefix($0) }
     }
 
     /// googlevideo.com (or its old *.c.youtube.com name) /videoplayback: a YouTube media stream.
