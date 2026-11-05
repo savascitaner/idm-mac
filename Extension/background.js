@@ -10,6 +10,9 @@ const DEFAULTS = {
   videoButton: true,
   minSizeKB: 0,
   disabledSites: [],
+  // Every file Chrome decides to download goes to MDM, not only the types in `exts`
+  // (documents, images, files without an extension...). Web pages Chrome saves stay in Chrome.
+  captureAll: true,
   exts: "zip rar 7z gz bz2 xz tar tgz dmg pkg iso img exe msi apk deb rpm appimage bin " +
     "mp3 m4a aac flac wav ogg opus mp4 m4v mkv avi mov wmv flv webm mpg mpeg ts " +
     "pdf epub djvu torrent psd ai",
@@ -131,34 +134,60 @@ function extOf(name) {
 
 function siteOf(u) {
   try {
-    return new URL(u).hostname.replace(/^www\./, "");
+    // blob:https://site/uuid -> site
+    return new URL(String(u || "").replace(/^blob:/i, "")).hostname.replace(/^www\./, "");
   } catch (e) {
     return "";
   }
 }
 
-function shouldCapture(item, s) {
+/** A file the page made itself (blob: or data: URL, e.g. ElevenLabs audio): MDM can't fetch it. */
+function isLocal(url) {
+  return /^(blob|data):/i.test(url || "");
+}
+
+/**
+ * What to do with a download Chrome just started:
+ *  "fetch": cancel it in Chrome, MDM downloads the URL itself (with cookies, referrer, user agent);
+ *  "adopt": a blob:/data: file only this tab has; Chrome writes it (instantly, nothing to download) and MDM
+ *           then moves the finished file into its folder and list;
+ *  "": Chrome keeps it.
+ */
+function captureMode(item, s) {
   const url = item.finalUrl || item.url;
-  if (!s.capture) return false;
+  if (!s.capture) return "";
   const off = new Set(s.disabledSites || []);
-  if (off.has(siteOf(item.referrer)) || off.has(siteOf(url))) return false;
-  if (!/^https?:/i.test(url)) return false; // blob:, data:, file: stay in Chrome
-  if (item.byExtensionId === chrome.runtime.id) return false;
-  if (item.state && item.state !== "in_progress") return false;
+  if (off.has(siteOf(item.referrer)) || off.has(siteOf(url)) || off.has(siteOf(item.url))) return "";
+  if (item.byExtensionId === chrome.runtime.id) return "";
+  if (item.state && item.state !== "in_progress") return "";
   if (skipOnce.has(url) || skipOnce.has(item.url)) {
     skipOnce.delete(url);
     skipOnce.delete(item.url);
-    return false;
+    return "";
   }
-  if (postURLs.has(url) || postURLs.has(item.url)) return false;
-  if (s.minSizeKB > 0 && item.totalBytes > 0 && item.totalBytes < s.minSizeKB * 1024) return false;
+  if (s.minSizeKB > 0 && item.totalBytes > 0 && item.totalBytes < s.minSizeKB * 1024) return "";
+  if (isLocal(item.url) || isLocal(url)) return "adopt";
+  if (!/^https?:/i.test(url)) return ""; // file:, filesystem: stay in Chrome
+  if (postURLs.has(url) || postURLs.has(item.url)) return ""; // a form POST can't be replayed
 
   const name = (item.filename || "").split("/").pop();
-  const ext = extOf(name) || extOf(new URL(url).pathname);
+  let path = "";
+  try {
+    path = new URL(url).pathname;
+  } catch (e) {
+    /* not a URL */
+  }
+  const ext = extOf(name) || extOf(path);
+  const mime = (item.mime || "").toLowerCase();
+  // "Save page as…" and pages served as attachments: MDM would only get the page again.
+  if (/^text\/html|application\/xhtml/.test(mime) || ["htm", "html", "mhtml", "xhtml"].includes(ext)) return "";
+  if (s.captureAll) return "fetch";
+
   const list = s.exts.split(/[\s,]+/).filter(Boolean);
-  if (ext && list.includes(ext)) return true;
-  const mime = item.mime || "";
-  return /^(video|audio)\/|octet-stream|zip|compressed|diskimage|x-msdownload|x-iso|x-apple|x-tar|x-7z|x-rar|pdf/i.test(mime);
+  if (ext && list.includes(ext)) return "fetch";
+  return /^(video|audio)\/|octet-stream|zip|compressed|diskimage|x-msdownload|x-iso|x-apple|x-tar|x-7z|x-rar|pdf/i.test(mime)
+    ? "fetch"
+    : "";
 }
 
 async function handOff(item) {
@@ -177,6 +206,8 @@ async function handOff(item) {
     referrer: item.referrer || "",
     mime: item.mime || "",
     size: item.totalBytes || 0,
+    // If the server refuses MDM (HTTP 403, a web page instead of the file...), the app hands it back here.
+    fallback: "browser",
     userAgent: navigator.userAgent,
     cookies: await cookiesFor(url),
   });
@@ -187,27 +218,104 @@ async function handOff(item) {
   }
 }
 
+// ---------- Files the page made itself (blob:/data:) ----------
+
+// Download ids Chrome is writing for MDM to adopt once they are complete. Kept in session storage too,
+// because the service worker can stop in between.
+const ADOPT_KEY = "adoptIds";
+const adoptMem = new Map();
+
+async function rememberAdopt(item) {
+  adoptMem.set(item.id, { referrer: item.referrer || "", time: Date.now() });
+  const cur = (await chrome.storage.session.get({ [ADOPT_KEY]: {} }))[ADOPT_KEY];
+  cur[item.id] = { referrer: item.referrer || "", time: Date.now() };
+  for (const [k, v] of Object.entries(cur)) if (Date.now() - v.time > 3600000) delete cur[k];
+  await chrome.storage.session.set({ [ADOPT_KEY]: cur });
+}
+
+async function takeAdopt(id) {
+  const mem = adoptMem.get(id);
+  adoptMem.delete(id);
+  const cur = (await chrome.storage.session.get({ [ADOPT_KEY]: {} }))[ADOPT_KEY];
+  const v = cur[id] || mem;
+  if (!v) return null;
+  if (cur[id]) {
+    delete cur[id];
+    await chrome.storage.session.set({ [ADOPT_KEY]: cur });
+  }
+  return v;
+}
+
+/** Chrome finished writing a blob:/data: file: MDM moves it into its download folder and lists it. */
+async function adopt(item, info) {
+  const url = item.url || "";
+  // A data: URL can be megabytes long: only its type goes along.
+  const shownUrl = url.startsWith("data:") ? url.split(/[;,]/)[0] : url;
+  let referrer = info.referrer || item.referrer || "";
+  if (!referrer && url.startsWith("blob:")) {
+    try {
+      referrer = new URL(url.slice(5)).origin + "/";
+    } catch (e) {
+      /* opaque origin */
+    }
+  }
+  const res = await send(
+    {
+      type: "adopt",
+      path: item.filename,
+      url: shownUrl,
+      referrer,
+      mime: item.mime || "",
+      size: item.fileSize || item.totalBytes || 0,
+    },
+    30000
+  );
+  if (res && res.type === "adopted" && res.ok) {
+    // The file now lives in MDM's folder; Chrome's entry would point to nothing.
+    chrome.downloads.erase({ id: item.id });
+  }
+  // Otherwise (app not reachable, file could not be moved) the file simply stays where Chrome saved it.
+}
+
+chrome.downloads.onChanged.addListener(async (d) => {
+  if (!d.state || d.state.current !== "complete") return;
+  let info = await takeAdopt(d.id);
+  if (!info && !chrome.downloads.onDeterminingFilename) {
+    // Firefox: a tiny blob can finish before onCreated's bookkeeping is done.
+    await new Promise((r) => setTimeout(r, 800));
+    info = await takeAdopt(d.id);
+  }
+  if (!info) return;
+  const [item] = await chrome.downloads.search({ id: d.id });
+  if (item && item.filename && item.exists !== false) adopt(item, info);
+});
+
+function route(item, s) {
+  const mode = captureMode(item, s);
+  if (mode === "fetch") handOff(item);
+  else if (mode === "adopt") return rememberAdopt(item);
+  return Promise.resolve();
+}
+
 // Firefox has no onDeterminingFilename; onCreated fires a little earlier (file name and MIME type may still be empty).
 if (!chrome.downloads.onDeterminingFilename) {
   chrome.downloads.onCreated.addListener((item) => {
-    settings().then((s) => {
-      if (shouldCapture(item, s)) handOff(item);
-    });
+    settings().then((s) => route(item, s));
   });
 }
 
 // onDeterminingFilename fires once the response headers are in, so the real file name and MIME type are known.
 if (chrome.downloads.onDeterminingFilename) chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
-  settings().then((s) => {
-    if (shouldCapture(item, s)) {
-      handOff(item);
-    }
-    try {
-      suggest();
-    } catch (e) {
-      /* download was already cancelled */
-    }
-  });
+  settings()
+    .then((s) => route(item, s))
+    .catch(() => {})
+    .finally(() => {
+      try {
+        suggest();
+      } catch (e) {
+        /* download was already cancelled */
+      }
+    });
   return true;
 });
 

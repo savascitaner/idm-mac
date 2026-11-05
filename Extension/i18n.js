@@ -23,6 +23,7 @@
     "Henüz bir şey yakalanmadı.": "Nothing captured yet.",
     "Adres yapıştır": "Paste an address",
     "İndirmeleri otomatik yakala": "Capture downloads automatically",
+    "Her dosya türünü yakala": "Capture every file type",
     "Videoların üstünde buton göster": "Show a button on videos",
     "Bu sitede yakalamayı kapat": "Turn off capture on this site",
     "Küçük dosyaları Chrome indirsin": "Let the browser download small files",
