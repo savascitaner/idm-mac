@@ -10,6 +10,7 @@ import http.server
 import json
 import os
 import plistlib
+import re
 import shutil
 import struct
 import subprocess
@@ -141,6 +142,14 @@ def safari_refusal_test():
     print("safari mirror finished:", rec and rec.get("state"))
     if not rec or rec.get("state") != "completed":
         fail("a mirrored Safari download did not complete when Safari finished")
+    # The Dock badge follows the running downloads: it must not keep counting the finished mirror.
+    time.sleep(3)
+    badges = re.findall(r"Dock rozeti: (\S+)", (SUPPORT / "mdm.log").read_text(errors="replace"))
+    running = sum(1 for r in json.loads(DB.read_text()) if r.get("state") == "downloading")
+    badge = badges[-1] if badges else "yok"
+    print("dock badge after mirror finished:", badge, "running:", running)
+    if badge != (str(running) if running else "yok"):
+        fail(f"the Dock badge shows {badge} while {running} downloads are running")
 
     norange = f"{base}/norange/file.bin"
     ndir = safari_download("norange.bin", norange)
