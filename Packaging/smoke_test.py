@@ -196,6 +196,66 @@ def safari_refusal_test():
         fail("Safari's copy of a refused Studio download was removed")
 
 
+def chrome_capture_test():
+    """Chrome extension paths: a file the page made itself (blob:/data:, e.g. ElevenLabs audio) is adopted from
+    where Chrome saved it into MDM's folder and list; a download the server refuses MDM (HTTP 403) goes back to
+    the browser and the list says so."""
+    # 1. Adopt a finished blob: file.
+    src_dir = Path.home() / "Library/Caches/mdm-adopt-test"
+    src_dir.mkdir(parents=True, exist_ok=True)
+    src = src_dir / "ElevenLabs_smoke_test.mp3"
+    src.write_bytes(os.urandom(50_000))
+    blob = "blob:https://elevenlabs.io/0b6d8c1e-1111-2222-3333-444455556666"
+    p = subprocess.Popen([str(HOST)], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    p.stdin.write(frame({"type": "adopt", "id": "a1", "path": str(src), "url": blob,
+                         "referrer": "https://elevenlabs.io/app/speech-synthesis", "mime": "audio/mpeg", "size": 50_000}))
+    p.stdin.flush()
+    m = read_frame(p.stdout)
+    p.stdin.close()
+    p.kill()
+    print("adopt reply:", m)
+    if not m or m.get("type") != "adopted" or not m.get("ok") or m.get("id") != "a1":
+        fail("a blob: file Chrome saved was not adopted")
+    dest = Path(m["path"])
+    if not dest.exists() or src.exists():
+        fail(f"adopted file was not moved into the download folder ({dest}, source left: {src.exists()})")
+    time.sleep(1)
+    rec = next((r for r in json.loads(DB.read_text()) if r.get("url") == blob), None)
+    print("adopted record:", rec and rec.get("state"), rec and rec.get("finalPath"))
+    if not rec or rec.get("state") != "completed" or rec.get("finalPath") != str(dest) or rec.get("totalBytes") != 50_000:
+        fail("adopted file is not listed as a completed download")
+    dest.unlink()
+
+    # 2. The server refuses MDM: the download goes back to the browser, the entry says why.
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), LocalFiles)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    target = f"http://127.0.0.1:{server.server_port}/forbidden/signed-audio.mp3"
+    p = subprocess.Popen([str(HOST)], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    p.stdin.write(frame({"type": "download", "id": "f1", "url": target, "originalUrl": target, "filename": "signed-audio.mp3",
+                         "mime": "audio/mpeg", "fallback": "browser", "userAgent": "Mozilla/5.0", "cookies": []}))
+    p.stdin.flush()
+    got = []
+    t0 = time.time()
+    while time.time() - t0 < 60:
+        msg = read_frame(p.stdout)
+        if msg is None:
+            break
+        got.append(msg)
+        if msg.get("type") == "fallback":
+            break
+    p.stdin.close()
+    p.kill()
+    server.shutdown()
+    print("403 fallback:", got)
+    if not any(x.get("type") == "fallback" and x.get("url") == target for x in got):
+        fail("a download the server refused MDM was not handed back to the browser")
+    time.sleep(1)
+    rec = next((r for r in json.loads(DB.read_text()) if r.get("url") == target), None)
+    print("refused record:", rec and rec.get("state"), rec and rec.get("error"))
+    if not rec or rec.get("state") != "failed" or "geri verildi" not in (rec.get("error") or ""):
+        fail("the list does not say the refused download went back to the browser")
+
+
 def torrent_test():
     """A Debian netinst torrent through the native host: rqbit must add it and start downloading."""
     import re
@@ -331,6 +391,8 @@ def main():
     print("html fallback:", got)
     if not any(m.get("type") == "fallback" for m in got):
         fail("HTML response was not handed back to the browser")
+
+    chrome_capture_test()
 
     # Hover menu: a "probe" is answered later with the video's choices (not with "accepted").
     p = subprocess.Popen([str(HOST)], stdin=subprocess.PIPE, stdout=subprocess.PIPE)

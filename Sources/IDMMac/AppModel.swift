@@ -60,6 +60,12 @@ final class AppModel: ObservableObject {
                 Task { @MainActor in AppModel.shared.probeForMenu(msg, reply: reply) }
                 return
             }
+            if msg["type"] as? String == "adopt" {
+                // A file the browser made itself (blob:/data:): the extension waits for the result
+                // before it removes the browser's own entry.
+                Task { @MainActor in reply(AppModel.shared.adoptBrowserFile(msg)) }
+                return
+            }
             reply(["type": "accepted", "id": id])
             Task { @MainActor in AppModel.shared.handle(msg) }
         }
@@ -322,6 +328,50 @@ final class AppModel: ObservableObject {
         pump()
     }
 
+    /// A file the page made itself in the browser (blob: or data: URL, e.g. audio generated on ElevenLabs).
+    /// There is no address MDM could fetch, so the browser writes the file and MDM takes the finished file:
+    /// it moves it into MDM's download folder (and folder rules) and lists it as a completed download.
+    /// If the file can't be moved it stays where the browser put it and is listed there.
+    func adoptBrowserFile(_ msg: [String: Any]) -> [String: Any] {
+        let id = msg["id"] as? String ?? ""
+        let fm = FileManager.default
+        guard let path = msg["path"] as? String, !path.isEmpty, fm.fileExists(atPath: path) else {
+            Log.download("adopt: browser file not found: \(msg["path"] as? String ?? "")")
+            return ["type": "adopted", "id": id, "ok": false]
+        }
+        let src = URL(fileURLWithPath: path)
+        let name = src.lastPathComponent
+        let dir = URL(fileURLWithPath: FolderRules.directory(base: downloadDirectory, fileName: name), isDirectory: true)
+        var saved = src
+        if src.deletingLastPathComponent().standardizedFileURL.path != dir.standardizedFileURL.path {
+            do {
+                try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+                let dest = FileMeta.uniqueURL(in: dir, name: name)
+                try fm.moveItem(at: src, to: dest)
+                saved = dest
+            } catch {
+                Log.download("adopt: could not move \(path) to \(dir.path): \(error.localizedDescription); listed in place")
+            }
+        }
+        let attrs = try? fm.attributesOfItem(atPath: saved.path)
+        let size = (attrs?[.size] as? NSNumber)?.int64Value ?? 0
+        let referrer = msg["referrer"] as? String ?? ""
+        var rec = DownloadRecord(kind: .file, url: msg["url"] as? String ?? "", pageURL: referrer.isEmpty ? nil : referrer,
+                                 fileName: saved.lastPathComponent, directory: saved.deletingLastPathComponent().path,
+                                 headers: [:])
+        rec.state = .completed
+        rec.finalPath = saved.path
+        rec.totalBytes = size
+        rec.receivedBytes = size
+        rec.completedAt = Date()
+        rec.browserMime = msg["mime"] as? String
+        downloads.insert(rec, at: 0)
+        save()
+        Log.download("adopted a file the browser made (\(msg["url"] as? String ?? "?"), page \(referrer)): \(saved.path)")
+        notifyUser("İndirme tamamlandı", rec.fileName, category: NotificationHandler.doneCategory, downloadID: rec.id)
+        return ["type": "adopted", "id": id, "ok": true, "path": saved.path]
+    }
+
     /// A magnet link, a .torrent URL or a local .torrent file; rqbit downloads it.
     func addTorrent(_ source: String, name: String = "", headers: [String: String] = [:], pageURL: String? = nil,
                     quiet: Bool = false) {
@@ -552,13 +602,22 @@ final class AppModel: ObservableObject {
                 downloads[i].segments = []
                 msg += "; indirme Safari'ye geri verildi"
             }
-            if msg == SegmentedDownloader.htmlInsteadOfFile, downloads[i].browserMime != nil {
-                // Like IDM: if we can't fetch it, let the browser download it after all.
+            let fromBrowser = downloads[i].browserFallback == "browser"
+            if (msg == SegmentedDownloader.htmlInsteadOfFile && (downloads[i].browserMime != nil || fromBrowser))
+                || (fromBrowser && msg.hasPrefix("Sunucu hatası")) {
+                // Like IDM: if we can't fetch it (a web page instead of the file, or the server refuses MDM,
+                // e.g. a short-lived signed link that wants the browser's session), the browser downloads it
+                // after all. The entry stays in the list and says why.
                 let url = downloads[i].originalURL ?? downloads[i].url
                 if server?.broadcast(["type": "fallback", "url": url]) == true {
-                    msg += "; indirme Chrome'a geri verildi"
+                    msg += "; indirme tarayıcıya geri verildi"
+                    Log.download("handed back to the browser: \(url)")
+                } else {
+                    Log.download("could not hand back to the browser (extension not connected): \(url)")
                 }
                 if let t = downloads[i].tempPath { try? FileManager.default.removeItem(atPath: t) }
+                downloads[i].tempPath = nil
+                downloads[i].segments = []
             }
             Log.download("failed: \(downloads[i].fileName.isEmpty ? downloads[i].url : downloads[i].fileName): \(msg)")
             downloads[i].state = .failed

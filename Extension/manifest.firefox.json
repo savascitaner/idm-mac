@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MDM - Mac Download Manager",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "default_locale": "tr",
   "description": "__MSG_description__",
   "permissions": [

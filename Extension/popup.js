@@ -26,8 +26,8 @@ async function main() {
     }
   });
 
-  const s = await chrome.storage.local.get({ capture: true, videoButton: true });
-  for (const k of ["capture", "videoButton"]) {
+  const s = await chrome.storage.local.get({ capture: true, captureAll: true, videoButton: true });
+  for (const k of ["capture", "captureAll", "videoButton"]) {
     $(k).checked = s[k];
     $(k).addEventListener("change", () => chrome.storage.local.set({ [k]: $(k).checked }));
   }
